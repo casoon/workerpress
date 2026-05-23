@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true
+  sharp: true
+  workerd: true

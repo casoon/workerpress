@@ -6,24 +6,24 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "wrangler dev ./dist/_worker.js/index.js",
+    "preview": "npm run build && node ./scripts/add-main-and-publish.js",
     "deploy": "astro build && wrangler deploy",
     "cms": "workerpress"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^12.0.0",
-    "@astrojs/svelte": "^7.0.0",
+    "@astrojs/cloudflare": "^13.5.4",
+    "@astrojs/svelte": "^8.1.1",
     "@workerpress/core": "workspace:*",
     "@workerpress/ui": "workspace:*",
-    "astro": "^5.0.0",
-    "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.36.0",
-    "hono": "^4.6.0",
-    "svelte": "^5.0.0",
-    "zod": "^3.23.0"
+    "astro": "^6.3.7",
+    "better-auth": "^1.6.11",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.22",
+    "svelte": "^5.55.9",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.28.0",
-    "wrangler": "^3.90.0"
+    "drizzle-kit": "^0.31.10",
+    "wrangler": "^4.94.0"
   }
 }

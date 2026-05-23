@@ -1,22 +1,7 @@
 name = "workerpress-starter"
-main = "./dist/_worker.js/index.js"
-compatibility_date = "2025-01-01"
+account_id = "10d397129a4f9cc793d7d3b6ddfcc64f"
+workers_dev = true
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "workerpress-starter"
-database_id = "REPLACE_ME"
-
-[[r2_buckets]]
-binding = "MEDIA"
-bucket_name = "workerpress-starter-media"
-
-[[kv_namespaces]]
-binding = "CACHE"
-id = "REPLACE_ME"
-
-# Optional: async Events / Webhooks
-# [[queues.producers]]
-# binding = "JOBS"
-# queue = "workerpress-starter-jobs"
+# main wird nach dem Build vom Skript eingefügt
