@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "WorkerPress core — Collection-DSL, Generierung, Platform-Contract und cms-CLI",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "BUSL-1.1",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

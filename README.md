@@ -38,6 +38,10 @@ npm run cms inspect
 
 ## Lizenz
 
-**Noch offen / zu klären.** Bis eine Lizenz festgelegt ist, sind die Pakete als
-`UNLICENSED` markiert — keine Nutzungs-/Verbreitungsrechte gewährt. Vor einer ggf.
-geplanten npm-Veröffentlichung muss die Lizenz entschieden werden.
+**Business Source License 1.1 (BUSL-1.1)** — siehe [LICENSE](./LICENSE).
+
+- Erlaubt: Kopieren, Ändern, Weitergeben und **nicht-produktive** Nutzung; zusätzlich
+  produktive Nutzung außer als konkurrierender Hosted-/Managed-Service (Additional Use Grant).
+- **Change Date:** 2030-05-23 — danach gilt die **Apache License 2.0**.
+- Parameter (Licensor, Additional Use Grant, Change Date, Change License) sind als Entwurf
+  gesetzt und können noch angepasst werden.

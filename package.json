@@ -4,7 +4,7 @@
   "private": true,
   "description": "Schema-getriebenes Edge-Application-Framework mit CMS-Fokus (Astro + Hono auf Cloudflare Workers)",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "BUSL-1.1",
   "engines": {
     "node": ">=22"
   },
