@@ -1,0 +1,22 @@
+{
+  "name": "@workerpress/ui",
+  "version": "0.0.0",
+  "description": "WorkerPress geteilte Admin-Islands (Svelte 5)",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@workerpress/core": "workspace:*",
+    "svelte": "^5.0.0"
+  }
+}

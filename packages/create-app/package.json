@@ -1,0 +1,15 @@
+{
+  "name": "create-workerpress",
+  "version": "0.0.0",
+  "description": "Scaffolder für WorkerPress-Projekte (npm create workerpress)",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-workerpress": "./dist/index.js"
+  },
+  "files": ["dist", "templates"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "typecheck": "tsc --noEmit"
+  }
+}

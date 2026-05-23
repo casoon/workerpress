@@ -1,0 +1,19 @@
+---
+const user = Astro.locals.user;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin · WorkerPress</title>
+  </head>
+  <body>
+    <main>
+      <h1>Admin</h1>
+      <p>Angemeldet als: {user ? JSON.stringify(user) : 'unbekannt'}</p>
+      <!-- Daten-Tabellen, Formulare und Widgets werden als Svelte-Islands eingebunden. -->
+    </main>
+  </body>
+</html>

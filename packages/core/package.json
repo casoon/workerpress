@@ -1,0 +1,30 @@
+{
+  "name": "@workerpress/core",
+  "version": "0.0.0",
+  "description": "WorkerPress core — Collection-DSL, Generierung, Platform-Contract und cms-CLI",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "workerpress": "./dist/cli/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.0",
+    "hono": "^4.6.0",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "better-auth": "^1.0.0"
+  }
+}

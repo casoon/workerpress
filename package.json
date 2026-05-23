@@ -1,0 +1,27 @@
+{
+  "name": "workerpress",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schema-getriebenes Edge-Application-Framework mit CMS-Fokus (Astro + Hono auf Cloudflare Workers)",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspace examples/starter",
+    "typecheck": "tsc --build",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0"
+  }
+}
