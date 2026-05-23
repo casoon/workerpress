@@ -35,3 +35,9 @@ npm install
 npm run dev        # examples/starter
 npm run cms inspect
 ```
+
+## Lizenz
+
+**Noch offen / zu klären.** Bis eine Lizenz festgelegt ist, sind die Pakete als
+`UNLICENSED` markiert — keine Nutzungs-/Verbreitungsrechte gewährt. Vor einer ggf.
+geplanten npm-Veröffentlichung muss die Lizenz entschieden werden.

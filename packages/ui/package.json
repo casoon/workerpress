@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "WorkerPress geteilte Admin-Islands (Svelte 5)",
   "type": "module",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
