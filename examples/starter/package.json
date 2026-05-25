@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "npm run build && node ./scripts/add-main-and-publish.js",
     "deploy": "astro build && wrangler deploy",
+    "cf-typegen": "wrangler types",
     "cms": "workerpress"
   },
   "dependencies": {

@@ -4,4 +4,16 @@ workers_dev = true
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# main wird nach dem Build vom Skript eingefügt
+# Bindings — IDs sind Platzhalter (lokale Dev-Emulation). Reale Provisionierung via Wrangler (#7 / `workerpress setup`).
+[[d1_databases]]
+binding = "DB"
+database_name = "workerpress"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "workerpress-media"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "00000000000000000000000000000000"

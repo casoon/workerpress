@@ -2,15 +2,14 @@ import { Hono } from 'hono';
 
 /**
  * Hono-App, gemountet unter /api/* durch Astro (siehe pages/api/[...path].ts).
- * Zwei Oberflächen: /api/content/* (read-only, gecacht) und /api/internal/*
- * (Vollzugriff, kein Cache). Siehe ARCHITECTURE §10.
+ * Eine Worker: Astro besitzt das UI, Hono besitzt /api/* (ARCHITECTURE §2).
+ * Oberflächen: /api/content/* (read-only, gecacht) und /api/internal/* (Vollzugriff).
  *
- * Grundgerüst: die Collection-Routes werden von @workerpress/core generiert
- * und hier gemountet. Vorerst nur Health-Endpoints.
+ * Grundgerüst: Collection-Routes werden von @workerpress/core generiert und hier
+ * gemountet. Vorerst Health-Endpoints.
  */
 
-// biome-ignore lint/complexity/noBannedTypes: Bindings werden vom Adapter typisiert
-type Bindings = {};
+type Bindings = Env;
 
 const content = new Hono<{ Bindings: Bindings }>().get('/health', (c) =>
   c.json({ ok: true, surface: 'content' }),
@@ -21,6 +20,25 @@ const internal = new Hono<{ Bindings: Bindings }>().get('/health', (c) =>
 );
 
 export const app = new Hono<{ Bindings: Bindings }>()
+  .get('/api/health', (c) => {
+    // Nachweis, dass env (Bindings) und executionCtx.waitUntil Hono erreichen.
+    let waitUntil = false;
+    try {
+      c.executionCtx.waitUntil(Promise.resolve());
+      waitUntil = true;
+    } catch {
+      waitUntil = false;
+    }
+    return c.json({
+      ok: true,
+      bindings: {
+        DB: Boolean(c.env.DB),
+        MEDIA: Boolean(c.env.MEDIA),
+        CACHE: Boolean(c.env.CACHE),
+      },
+      waitUntil,
+    });
+  })
   .route('/api/content', content)
   .route('/api/internal', internal);
 
