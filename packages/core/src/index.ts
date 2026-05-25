@@ -44,3 +44,5 @@ export type { AdminExtensions, AdminTableConfig, PluginConfig } from './plugins/
 export { definePlugin } from './plugins/index.js';
 export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/index.js';
 export { allOf, anyOf, definePolicy } from './policies/index.js';
+export type { CollectionSchemas } from './schema/zod.js';
+export { collectionSchemas } from './schema/zod.js';
