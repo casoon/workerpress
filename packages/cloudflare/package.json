@@ -1,0 +1,31 @@
+{
+  "name": "@workerpress/cloudflare",
+  "version": "0.0.0",
+  "description": "WorkerPress Platform-Adapter für Cloudflare (D1/R2/KV)",
+  "type": "module",
+  "license": "BUSL-1.1",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260525.1",
+    "vitest": "^4.1.7"
+  },
+  "peerDependencies": {
+    "@workerpress/core": "workspace:*"
+  }
+}
