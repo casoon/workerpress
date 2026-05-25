@@ -1,5 +1,5 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
-import { contentRoutes, internalRoutes, type Platform } from '@workerpress/core';
+import { contentRoutes, internalRoutes, openApiDocument, type Platform } from '@workerpress/core';
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
@@ -59,6 +59,9 @@ export const app = new Hono<AppEnv>()
       waitUntil,
     });
   })
+  .get('/api/docs', (c) =>
+    c.json(openApiDocument([blog, pages], { title: 'WorkerPress Starter API', version: '0.0.0' })),
+  )
   .route('/api/content', content)
   .route('/api/internal', internal);
 
