@@ -8,12 +8,17 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "workerpress"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "f1a9de91-9ddf-489a-9edd-cf9a67858f6d"
 
-[[r2_buckets]]
-binding = "MEDIA"
-bucket_name = "workerpress-media"
+# R2 muss im Dashboard aktiviert werden (Fehler 10042); danach Bucket anlegen und einkommentieren.
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "workerpress-media"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "00000000000000000000000000000000"
+id = "3759c582363f444ab31ebd3dcbe99703"
+
+[[kv_namespaces]]
+binding = "SESSION"
+id = "bc52b05a29d3408ca45490b17df36f85"

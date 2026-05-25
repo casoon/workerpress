@@ -13,10 +13,7 @@ export async function getSession(
   _request: Request,
   _env: unknown,
 ): Promise<{ user: unknown } | null> {
-  // Stub bis Better Auth (#15) verdrahtet ist. Nur im Dev-Modus eine Session,
-  // damit /admin lokal testbar ist; in Produktion bleibt /admin gesperrt.
-  if (import.meta.env.DEV) {
-    return { user: { id: 'dev', role: 'admin' } };
-  }
-  return null;
+  // ACHTUNG: Platzhalter OHNE echte Authentifizierung. Bis Better Auth (#15)
+  // verdrahtet ist, ist /admin ungeschützt — nicht mit echten Daten betreiben.
+  return { user: { id: 'demo', role: 'admin' } };
 }
