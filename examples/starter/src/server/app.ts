@@ -1,6 +1,7 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import type { Platform } from '@workerpress/core';
 import { Hono } from 'hono';
+import { notesRoutes } from './routes/internal/notes.js';
 
 /**
  * Hono-App, gemountet unter /api/* durch Astro (siehe pages/api/[...path].ts).
@@ -16,9 +17,9 @@ type AppEnv = { Bindings: Bindings; Variables: Variables };
 
 const content = new Hono<AppEnv>().get('/health', (c) => c.json({ ok: true, surface: 'content' }));
 
-const internal = new Hono<AppEnv>().get('/health', (c) =>
-  c.json({ ok: true, surface: 'internal' }),
-);
+const internal = new Hono<AppEnv>()
+  .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
+  .route('/notes', notesRoutes);
 
 export const app = new Hono<AppEnv>();
 

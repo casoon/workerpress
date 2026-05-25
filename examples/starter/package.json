@@ -9,6 +9,9 @@
     "preview": "npm run build && node ./scripts/add-main-and-publish.js",
     "deploy": "astro build && wrangler deploy",
     "cf-typegen": "wrangler types",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "test": "vitest run",
     "cms": "workerpress"
   },
   "dependencies": {
@@ -25,7 +28,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@libsql/client": "^0.17.3",
     "drizzle-kit": "^0.31.10",
+    "vitest": "^4.1.7",
     "wrangler": "^4.94.0"
   }
 }
