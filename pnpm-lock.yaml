@@ -116,6 +116,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@libsql/client':
+        specifier: ^0.17.3
+        version: 0.17.3
       vitest:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.1)(vite@7.3.3(@types/node@25.9.1)(tsx@4.22.3)(yaml@2.9.0))

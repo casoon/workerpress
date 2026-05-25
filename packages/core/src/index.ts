@@ -10,6 +10,8 @@ export type {
   RevalidateTarget,
 } from './collections/index.js';
 export { defineCollection } from './collections/index.js';
+export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
+export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
 export type {
   ColumnDefault,
   DerivedColumn,

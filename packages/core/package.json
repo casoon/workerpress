@@ -28,6 +28,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@libsql/client": "^0.17.3",
     "vitest": "^4.1.7"
   },
   "peerDependencies": {
