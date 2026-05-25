@@ -1,4 +1,6 @@
 ---
+import NotesPanel from '../../admin/islands/NotesPanel.svelte';
+
 const user = Astro.locals.user;
 ---
 
@@ -13,7 +15,8 @@ const user = Astro.locals.user;
     <main>
       <h1>Admin</h1>
       <p>Angemeldet als: {user ? JSON.stringify(user) : 'unbekannt'}</p>
-      <!-- Daten-Tabellen, Formulare und Widgets werden als Svelte-Islands eingebunden. -->
+      <h2>Notes</h2>
+      <NotesPanel client:load />
     </main>
   </body>
 </html>

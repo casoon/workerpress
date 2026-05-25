@@ -25,26 +25,36 @@ export function definePolicy<Doc = unknown, User = unknown>(
 }
 
 /** Alle Policies müssen zutreffen. */
-export function allOf(...policies: Policy[]): Policy {
-  return definePolicy(`allOf(${policies.map((p) => p.name).join(', ')})`, async (ctx) => {
-    for (const p of policies) {
-      if (!(await p.check(ctx))) return false;
-    }
-    return true;
-  });
+export function allOf<Doc = unknown, User = unknown>(
+  ...policies: Policy<Doc, User>[]
+): Policy<Doc, User> {
+  return definePolicy<Doc, User>(
+    `allOf(${policies.map((p) => p.name).join(', ')})`,
+    async (ctx) => {
+      for (const p of policies) {
+        if (!(await p.check(ctx))) return false;
+      }
+      return true;
+    },
+  );
 }
 
 /** Mindestens eine Policy muss zutreffen. */
-export function anyOf(...policies: Policy[]): Policy {
-  return definePolicy(`anyOf(${policies.map((p) => p.name).join(', ')})`, async (ctx) => {
-    for (const p of policies) {
-      if (await p.check(ctx)) return true;
-    }
-    return false;
-  });
+export function anyOf<Doc = unknown, User = unknown>(
+  ...policies: Policy<Doc, User>[]
+): Policy<Doc, User> {
+  return definePolicy<Doc, User>(
+    `anyOf(${policies.map((p) => p.name).join(', ')})`,
+    async (ctx) => {
+      for (const p of policies) {
+        if (await p.check(ctx)) return true;
+      }
+      return false;
+    },
+  );
 }
 
-export interface AccessRules {
-  read?: Policy;
-  write?: Policy;
+export interface AccessRules<Doc = unknown, User = unknown> {
+  read?: Policy<Doc, User>;
+  write?: Policy<Doc, User>;
 }

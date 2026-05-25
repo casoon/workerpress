@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator';
 import type { Platform } from '@workerpress/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -16,7 +17,10 @@ const updateSchema = z
     message: 'at least one of title or body is required',
   });
 
-/** Thin CRUD routes for `notes`. Delegates to the service — no DB query here. */
+/**
+ * Thin CRUD routes for `notes`. Delegates to the service — no DB query here.
+ * zValidator gives both runtime validation and request types for the hc client.
+ */
 export const notesRoutes = new Hono<Env>()
   .get('/', async (c) => {
     return c.json(await notesService(c.var.platform.db).list());
@@ -25,15 +29,14 @@ export const notesRoutes = new Hono<Env>()
     const note = await notesService(c.var.platform.db).get(c.req.param('id'));
     return note ? c.json(note) : c.json({ error: 'not found' }, 404);
   })
-  .post('/', async (c) => {
-    const parsed = createSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-    return c.json(await notesService(c.var.platform.db).create(parsed.data), 201);
+  .post('/', zValidator('json', createSchema), async (c) => {
+    return c.json(await notesService(c.var.platform.db).create(c.req.valid('json')), 201);
   })
-  .put('/:id', async (c) => {
-    const parsed = updateSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-    const note = await notesService(c.var.platform.db).update(c.req.param('id'), parsed.data);
+  .put('/:id', zValidator('json', updateSchema), async (c) => {
+    const note = await notesService(c.var.platform.db).update(
+      c.req.param('id'),
+      c.req.valid('json'),
+    );
     return note ? c.json(note) : c.json({ error: 'not found' }, 404);
   })
   .delete('/:id', async (c) => {

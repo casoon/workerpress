@@ -12,11 +12,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "test": "vitest run",
+    "typecheck": "astro check",
     "cms": "workerpress"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.5.4",
     "@astrojs/svelte": "^8.1.1",
+    "@hono/zod-validator": "^0.8.0",
     "@workerpress/cloudflare": "workspace:*",
     "@workerpress/core": "workspace:*",
     "@workerpress/ui": "workspace:*",
@@ -28,6 +30,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
     "@libsql/client": "^0.17.3",
     "drizzle-kit": "^0.31.10",
     "vitest": "^4.1.7",

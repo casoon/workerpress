@@ -9,6 +9,7 @@ import { notesRoutes } from './routes/internal/notes.js';
  * Oberflächen: /api/content/* (read-only, gecacht) und /api/internal/* (Vollzugriff).
  *
  * Domänen-Code greift nur über `c.var.platform` zu, nie direkt auf env.DB & Co.
+ * Routen werden gechaint, damit `AppType` für den hc-RPC-Client typsicher bleibt.
  */
 
 type Bindings = Env;
@@ -21,36 +22,33 @@ const internal = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
   .route('/notes', notesRoutes);
 
-export const app = new Hono<AppEnv>();
-
-// Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
-app.use('*', async (c, next) => {
-  c.set('platform', createCloudflarePlatform(c.env, c.executionCtx, { mediaBaseUrl: '/media' }));
-  await next();
-});
-
-app.get('/api/health', (c) => {
-  // Nachweis, dass env (Bindings) und executionCtx.waitUntil Hono erreichen.
-  let waitUntil = false;
-  try {
-    c.executionCtx.waitUntil(Promise.resolve());
-    waitUntil = true;
-  } catch {
-    waitUntil = false;
-  }
-  return c.json({
-    ok: true,
-    platform: Boolean(c.var.platform),
-    bindings: {
-      DB: Boolean(c.env.DB),
-      MEDIA: Boolean(c.env.MEDIA),
-      CACHE: Boolean(c.env.CACHE),
-    },
-    waitUntil,
-  });
-});
-
-app.route('/api/content', content);
-app.route('/api/internal', internal);
+export const app = new Hono<AppEnv>()
+  // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
+  .use('*', async (c, next) => {
+    c.set('platform', createCloudflarePlatform(c.env, c.executionCtx, { mediaBaseUrl: '/media' }));
+    await next();
+  })
+  .get('/api/health', (c) => {
+    // Nachweis, dass env (Bindings) und executionCtx.waitUntil Hono erreichen.
+    let waitUntil = false;
+    try {
+      c.executionCtx.waitUntil(Promise.resolve());
+      waitUntil = true;
+    } catch {
+      waitUntil = false;
+    }
+    return c.json({
+      ok: true,
+      platform: Boolean(c.var.platform),
+      bindings: {
+        DB: Boolean(c.env.DB),
+        MEDIA: Boolean(c.env.MEDIA),
+        CACHE: Boolean(c.env.CACHE),
+      },
+      waitUntil,
+    });
+  })
+  .route('/api/content', content)
+  .route('/api/internal', internal);
 
 export type AppType = typeof app;
