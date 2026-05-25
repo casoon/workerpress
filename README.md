@@ -9,8 +9,10 @@ a type-safe query layer, OpenAPI docs, admin forms, the search index, cache reva
 TypeScript types. The CMS is the first complete application built on the framework — not the
 limit of what you can build with it.
 
-> **Status:** Skeleton. The packages expose the public API surface as typed stubs — there is
-> no full implementation yet, and dependencies are not installed.
+> **Status:** Early milestone (M0). The toolchain is green (build, typecheck, tests, lint) and
+> the reference app proves the core bets end-to-end: Astro + Hono in one Worker, the platform
+> abstraction over D1/R2/KV, a Drizzle+D1 CRUD spike, and type-safe Hono RPC into a Svelte
+> admin island. The collection DSL (`defineCollection`) is still a typed stub.
 
 ## Why Astro + Hono in one Worker
 
@@ -53,18 +55,46 @@ there is no per-tenant data separation and no `tenant_id` in auth, policies, or 
 | Package | Name | Purpose |
 |---|---|---|
 | Core | `@workerpress/core` | Collection DSL, generation, platform contract, `cms` CLI |
+| Cloudflare | `@workerpress/cloudflare` | Platform adapter (Drizzle/D1, R2, KV, `defer`) |
 | UI | `@workerpress/ui` | Shared admin islands (Svelte 5) |
 | Create | `create-workerpress` | `npm create workerpress` scaffolder |
 | Plugins | `@workerpress/plugin-*` | Official plugins |
 | Starter | `workerpress-starter` | Reference application |
 
-## Getting started (planned)
+## Develop, build & deploy
+
+The reference app lives in `examples/starter`. From the repo root:
 
 ```bash
-npm install
-npm run dev          # runs the starter (Astro + Hono via Miniflare bindings)
-npm run cms inspect  # show generated routes, schemas, and migrations
+pnpm install
+pnpm dev                 # starter on http://localhost:4321 (Astro + Hono, local D1/R2/KV)
+pnpm build && pnpm typecheck && pnpm test && pnpm lint
+
+# data (run in examples/starter)
+pnpm --filter workerpress-starter db:generate       # generate a D1 migration from the schema
+pnpm --filter workerpress-starter db:migrate:local  # apply it to the local D1
 ```
+
+### Deploy to Cloudflare
+
+`@astrojs/cloudflare` bundles Astro + Hono into one Worker and emits the deploy config at
+`dist/server/wrangler.json`. Provision the bindings once per environment, then write the
+returned IDs into `examples/starter/wrangler.toml`:
+
+```bash
+cd examples/starter
+wrangler d1 create workerpress             # -> d1_databases[0].database_id
+wrangler kv namespace create CACHE         # -> kv_namespaces (CACHE) id
+wrangler r2 bucket create workerpress-media
+wrangler d1 migrations apply DB --remote   # migrate the remote D1
+
+pnpm deploy    # astro build && wrangler deploy -c dist/server/wrangler.json
+pnpm preview   # upload a preview version (no production traffic)
+```
+
+After deploy, `GET /api/health` and `/admin` are reachable on the Worker URL. The adapter also
+adds `SESSION` (KV, for Astro sessions) and `IMAGES` (Cloudflare Images) bindings — provision /
+enable those on the account, or adjust the adapter config, before a production deploy.
 
 ## Platform
 
