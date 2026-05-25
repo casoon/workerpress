@@ -13,9 +13,10 @@
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "dev": "npm run dev --workspace examples/starter",
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter workerpress-starter dev",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "lint": "biome check .",
     "format": "biome format --write ."
   },

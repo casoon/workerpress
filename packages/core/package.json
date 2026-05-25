@@ -13,16 +13,22 @@
   "bin": {
     "workerpress": "./dist/cli/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.22",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
   },
   "peerDependencies": {
     "better-auth": "^1.0.0"

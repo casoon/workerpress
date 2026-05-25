@@ -17,7 +17,8 @@ const notImplemented = (name: string) => () => {
 
 const commands: Record<string, Command> = {
   inspect: {
-    summary: 'Generierte Drizzle-Struktur, Routes, Zod-Schemas, Indizes, Hooks, Policies, Admin-Form, Migrationen anzeigen',
+    summary:
+      'Generierte Drizzle-Struktur, Routes, Zod-Schemas, Indizes, Hooks, Policies, Admin-Form, Migrationen anzeigen',
     run: notImplemented('inspect'),
   },
   routes: {

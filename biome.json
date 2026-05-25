@@ -1,7 +1,9 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/dist", "!**/node_modules", "!**/.astro", "!**/*.svelte"] },
+  "files": {
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/.astro", "!**/*.svelte", "!**/*.astro"]
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

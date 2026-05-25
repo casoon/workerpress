@@ -4,8 +4,8 @@
  * Such-Index und TypeScript-Typen. Siehe ARCHITECTURE §5.
  */
 
-import type { AccessRules } from '../policies/index.js';
 import type { Fields } from '../fields/index.js';
+import type { AccessRules } from '../policies/index.js';
 
 export interface CollectionLabels {
   singular: string;

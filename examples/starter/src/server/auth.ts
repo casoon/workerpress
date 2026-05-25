@@ -9,7 +9,10 @@ export const auth = (_env: unknown) =>
     emailAndPassword: { enabled: true },
   });
 
-export async function getSession(_request: Request, _env: unknown): Promise<{ user: unknown } | null> {
+export async function getSession(
+  _request: Request,
+  _env: unknown,
+): Promise<{ user: unknown } | null> {
   // Grundgerüst: liest die Session über Better Auth. Folgt mit dem DB-Adapter.
   return null;
 }

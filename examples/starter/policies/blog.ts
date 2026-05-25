@@ -10,10 +10,7 @@ interface BlogDoc {
   status?: 'draft' | 'published';
 }
 
-export const isAuthenticated = definePolicy<BlogDoc, User>(
-  'isAuthenticated',
-  ({ user }) => !!user,
-);
+export const isAuthenticated = definePolicy<BlogDoc, User>('isAuthenticated', ({ user }) => !!user);
 
 export const isEditor = definePolicy<BlogDoc, User>(
   'isEditor',

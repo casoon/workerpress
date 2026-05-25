@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from 'fs/promises';
-import { execSync } from 'child_process';
-import path from 'path';
+import { execSync } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 const wranglerPath = path.resolve('wrangler.toml');
 
@@ -11,7 +11,7 @@ async function main() {
 
   // 2️⃣ ensure main field exists
   if (!content.includes('main = "./dist/_worker.js"')) {
-    content = content.trimEnd() + '\nmain = "./dist/_worker.js"\n';
+    content = `${content.trimEnd()}\nmain = "./dist/_worker.js"\n`;
     await writeFile(wranglerPath, content, 'utf8');
     console.log('✅ main field added to wrangler.toml');
   }
@@ -21,7 +21,7 @@ async function main() {
   execSync('wrangler versions upload', { stdio: 'inherit' });
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Error:', err);
   process.exit(1);
 });
