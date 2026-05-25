@@ -12,6 +12,8 @@ export type {
 export { defineCollection } from './collections/index.js';
 export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
 export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
+export type { CollectionRepository, ListOptions } from './db/repository.js';
+export { collectionRepository } from './db/repository.js';
 export type {
   ColumnDefault,
   DerivedColumn,
@@ -44,5 +46,6 @@ export type { AdminExtensions, AdminTableConfig, PluginConfig } from './plugins/
 export { definePlugin } from './plugins/index.js';
 export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/index.js';
 export { allOf, anyOf, definePolicy } from './policies/index.js';
+export { contentRoutes, internalRoutes } from './rest/routes.js';
 export type { CollectionSchemas } from './schema/zod.js';
 export { collectionSchemas } from './schema/zod.js';
