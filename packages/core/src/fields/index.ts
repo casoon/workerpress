@@ -61,24 +61,34 @@ export interface DateOptions extends BaseFieldOptions {
   default?: 'now';
 }
 
-/** Eingebaute Field-Builder. Erweiterbar über `defineField`. */
+/**
+ * Eingebaute Field-Builder. `const`-Generics bewahren die Optionen (required,
+ * enum-Werte, relation.many) auf Typebene, damit pro Collection Row-/Insert-Typen
+ * abgeleitet werden können (M1-6). Erweiterbar über `defineField`.
+ */
 export const field = {
-  text: (o?: TextOptions) => make('text', o),
-  richText: (o?: BaseFieldOptions) => make('richText', o),
-  markdown: (o?: BaseFieldOptions) => make('markdown', o),
-  number: (o?: BaseFieldOptions) => make('number', o),
-  boolean: (o?: BaseFieldOptions) => make('boolean', o),
-  date: (o?: DateOptions) => make('date', o),
-  enum: (values: string[], o?: EnumOptions) => make('enum', { ...o, values }),
-  slug: (o?: SlugOptions) => make('slug', o),
-  media: (o?: MediaOptions) => make('media', o),
-  relation: (o: RelationOptions) => make('relation', o),
-  json: (o?: BaseFieldOptions) => make('json', o),
-  email: (o?: BaseFieldOptions) => make('email', o),
-  url: (o?: BaseFieldOptions) => make('url', o),
+  text: <const O extends TextOptions>(o?: O) => make('text', (o ?? {}) as O),
+  richText: <const O extends BaseFieldOptions>(o?: O) => make('richText', (o ?? {}) as O),
+  markdown: <const O extends BaseFieldOptions>(o?: O) => make('markdown', (o ?? {}) as O),
+  number: <const O extends BaseFieldOptions>(o?: O) => make('number', (o ?? {}) as O),
+  boolean: <const O extends BaseFieldOptions>(o?: O) => make('boolean', (o ?? {}) as O),
+  date: <const O extends DateOptions>(o?: O) => make('date', (o ?? {}) as O),
+  enum: <const V extends string, const O extends EnumOptions = EnumOptions>(
+    values: readonly V[],
+    o?: O,
+  ): Field<'enum', O & { values: readonly V[] }> =>
+    ({ kind: 'enum', options: { ...o, values } }) as Field<'enum', O & { values: readonly V[] }>,
+  slug: <const O extends SlugOptions>(o?: O) => make('slug', (o ?? {}) as O),
+  media: <const O extends MediaOptions>(o?: O) => make('media', (o ?? {}) as O),
+  relation: <const O extends RelationOptions>(o: O) => make('relation', o),
+  json: <const O extends BaseFieldOptions>(o?: O) => make('json', (o ?? {}) as O),
+  email: <const O extends BaseFieldOptions>(o?: O) => make('email', (o ?? {}) as O),
+  url: <const O extends BaseFieldOptions>(o?: O) => make('url', (o ?? {}) as O),
 } as const;
 
-export type Fields = Record<string, Field>;
+// Options-Typ bewusst weit (Record statt BaseFieldOptions), damit die per
+// const-Generic erhaltenen Feld-Optionen (z. B. { to: 'users' }) zuweisbar sind.
+export type Fields = Record<string, Field<FieldType, Record<string, unknown>>>;
 
 /**
  * Composite-/Custom-Field. Bündelt Sub-Fields, Renderer und Ausgabe-Integrationen

@@ -49,5 +49,6 @@ export { allOf, anyOf, definePolicy } from './policies/index.js';
 export type { OpenApiInfo } from './rest/openapi.js';
 export { openApiDocument } from './rest/openapi.js';
 export { contentRoutes, internalRoutes } from './rest/routes.js';
+export type { InferInsert, InferSelect } from './schema/types.js';
 export type { CollectionSchemas } from './schema/zod.js';
 export { collectionSchemas } from './schema/zod.js';

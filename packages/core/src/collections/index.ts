@@ -21,17 +21,20 @@ export interface CollectionHooks {
 
 export type RevalidateTarget = string | ((ctx: { doc: Record<string, unknown> }) => string);
 
-export interface CollectionConfig {
+export interface CollectionConfig<F extends Fields = Fields> {
   name: string;
   /** Schema-Version für Breaking-Change-Erkennung (siehe ARCHITECTURE §5). */
   version?: number;
   labels?: CollectionLabels;
-  fields: Fields;
+  fields: F;
   access?: AccessRules;
   hooks?: CollectionHooks;
   revalidate?: RevalidateTarget[];
 }
 
-export function defineCollection(config: CollectionConfig): CollectionConfig {
+// `const F` bewahrt die Feld-Typen (für Row-/Insert-Inferenz, M1-6).
+export function defineCollection<const F extends Fields>(
+  config: CollectionConfig<F>,
+): CollectionConfig<F> {
   return config;
 }
