@@ -14,7 +14,9 @@ export type PolicyFn<Doc = unknown, User = unknown> = (
 
 export interface Policy<Doc = unknown, User = unknown> {
   readonly name: string;
-  readonly check: PolicyFn<Doc, User>;
+  // Method signature (bivariant params) so a typed Policy<Doc, User> stays
+  // assignable to Policy<unknown, unknown> in collection access rules.
+  check(ctx: PolicyContext<Doc, User>): boolean | Promise<boolean>;
 }
 
 export function definePolicy<Doc = unknown, User = unknown>(
@@ -25,36 +27,26 @@ export function definePolicy<Doc = unknown, User = unknown>(
 }
 
 /** Alle Policies müssen zutreffen. */
-export function allOf<Doc = unknown, User = unknown>(
-  ...policies: Policy<Doc, User>[]
-): Policy<Doc, User> {
-  return definePolicy<Doc, User>(
-    `allOf(${policies.map((p) => p.name).join(', ')})`,
-    async (ctx) => {
-      for (const p of policies) {
-        if (!(await p.check(ctx))) return false;
-      }
-      return true;
-    },
-  );
+export function allOf(...policies: Policy[]): Policy {
+  return definePolicy(`allOf(${policies.map((p) => p.name).join(', ')})`, async (ctx) => {
+    for (const p of policies) {
+      if (!(await p.check(ctx))) return false;
+    }
+    return true;
+  });
 }
 
 /** Mindestens eine Policy muss zutreffen. */
-export function anyOf<Doc = unknown, User = unknown>(
-  ...policies: Policy<Doc, User>[]
-): Policy<Doc, User> {
-  return definePolicy<Doc, User>(
-    `anyOf(${policies.map((p) => p.name).join(', ')})`,
-    async (ctx) => {
-      for (const p of policies) {
-        if (await p.check(ctx)) return true;
-      }
-      return false;
-    },
-  );
+export function anyOf(...policies: Policy[]): Policy {
+  return definePolicy(`anyOf(${policies.map((p) => p.name).join(', ')})`, async (ctx) => {
+    for (const p of policies) {
+      if (await p.check(ctx)) return true;
+    }
+    return false;
+  });
 }
 
-export interface AccessRules<Doc = unknown, User = unknown> {
-  read?: Policy<Doc, User>;
-  write?: Policy<Doc, User>;
+export interface AccessRules {
+  read?: Policy;
+  write?: Policy;
 }

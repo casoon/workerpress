@@ -1,6 +1,8 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
-import type { Platform } from '@workerpress/core';
+import { contentRoutes, internalRoutes, type Platform } from '@workerpress/core';
 import { Hono } from 'hono';
+import blog from '../../collections/blog.js';
+import pages from '../../collections/pages.js';
 import { notesRoutes } from './routes/internal/notes.js';
 import { smokeRoutes } from './routes/internal/smoke.js';
 
@@ -17,12 +19,19 @@ type Bindings = Env;
 type Variables = { platform: Platform };
 type AppEnv = { Bindings: Bindings; Variables: Variables };
 
-const content = new Hono<AppEnv>().get('/health', (c) => c.json({ ok: true, surface: 'content' }));
+// Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
+// generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).
+const content = new Hono<AppEnv>()
+  .get('/health', (c) => c.json({ ok: true, surface: 'content' }))
+  .route('/blog', contentRoutes(blog))
+  .route('/pages', contentRoutes(pages));
 
 const internal = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
   .route('/notes', notesRoutes)
-  .route('/smoke', smokeRoutes);
+  .route('/smoke', smokeRoutes)
+  .route('/content/blog', internalRoutes(blog))
+  .route('/content/pages', internalRoutes(pages));
 
 export const app = new Hono<AppEnv>()
   // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.

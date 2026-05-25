@@ -21,19 +21,17 @@ export interface CollectionHooks {
 
 export type RevalidateTarget = string | ((ctx: { doc: Record<string, unknown> }) => string);
 
-export interface CollectionConfig<Doc = unknown, User = unknown> {
+export interface CollectionConfig {
   name: string;
   /** Schema-Version für Breaking-Change-Erkennung (siehe ARCHITECTURE §5). */
   version?: number;
   labels?: CollectionLabels;
   fields: Fields;
-  access?: AccessRules<Doc, User>;
+  access?: AccessRules;
   hooks?: CollectionHooks;
   revalidate?: RevalidateTarget[];
 }
 
-export function defineCollection<Doc = unknown, User = unknown>(
-  config: CollectionConfig<Doc, User>,
-): CollectionConfig<Doc, User> {
+export function defineCollection(config: CollectionConfig): CollectionConfig {
   return config;
 }

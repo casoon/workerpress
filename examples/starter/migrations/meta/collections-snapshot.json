@@ -1,0 +1,124 @@
+[
+  {
+    "name": "blog",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "notNull": true,
+        "primaryKey": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "notNull": true
+      },
+      {
+        "name": "slug",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "author",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "publishedAt",
+        "type": "integer",
+        "notNull": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "notNull": false,
+        "default": "draft"
+      },
+      {
+        "name": "site",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "data",
+        "type": "text",
+        "notNull": true,
+        "default": "{}"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "blog_slug_idx",
+        "columns": ["slug"],
+        "unique": true
+      },
+      {
+        "name": "blog_status_idx",
+        "columns": ["status"],
+        "unique": false
+      },
+      {
+        "name": "blog_site_idx",
+        "columns": ["site"],
+        "unique": false
+      }
+    ],
+    "jsonColumn": "data"
+  },
+  {
+    "name": "pages",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "notNull": true,
+        "primaryKey": true
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "notNull": true
+      },
+      {
+        "name": "slug",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "notNull": false,
+        "default": "draft"
+      },
+      {
+        "name": "site",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "data",
+        "type": "text",
+        "notNull": true,
+        "default": "{}"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "pages_slug_idx",
+        "columns": ["slug"],
+        "unique": true
+      },
+      {
+        "name": "pages_status_idx",
+        "columns": ["status"],
+        "unique": false
+      },
+      {
+        "name": "pages_site_idx",
+        "columns": ["site"],
+        "unique": false
+      }
+    ],
+    "jsonColumn": "data"
+  }
+]
