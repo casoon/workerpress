@@ -10,6 +10,14 @@ export type {
   RevalidateTarget,
 } from './collections/index.js';
 export { defineCollection } from './collections/index.js';
+export type {
+  ColumnDefault,
+  DerivedColumn,
+  DerivedIndex,
+  DerivedTable,
+  SqliteType,
+} from './db/table.js';
+export { deriveTable } from './db/table.js';
 export type { CmsEventName, CmsEventPayloads, EventHandler } from './events/index.js';
 export { emit } from './events/index.js';
 export type {
