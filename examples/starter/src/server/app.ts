@@ -2,6 +2,7 @@ import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import type { Platform } from '@workerpress/core';
 import { Hono } from 'hono';
 import { notesRoutes } from './routes/internal/notes.js';
+import { smokeRoutes } from './routes/internal/smoke.js';
 
 /**
  * Hono-App, gemountet unter /api/* durch Astro (siehe pages/api/[...path].ts).
@@ -20,7 +21,8 @@ const content = new Hono<AppEnv>().get('/health', (c) => c.json({ ok: true, surf
 
 const internal = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
-  .route('/notes', notesRoutes);
+  .route('/notes', notesRoutes)
+  .route('/smoke', smokeRoutes);
 
 export const app = new Hono<AppEnv>()
   // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
