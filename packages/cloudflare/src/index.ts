@@ -1,6 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { EventBus, KeyValue, ObjectStorage, Platform, SearchAdapter } from '@workerpress/core';
+import {
+  createFts5SearchAdapter,
+  type EventBus,
+  type KeyValue,
+  type ObjectStorage,
+  type Platform,
+  type SearchAdapter,
+} from '@workerpress/core';
 import { drizzle } from 'drizzle-orm/d1';
 
 export interface CloudflareBindings {
@@ -12,6 +19,8 @@ export interface CloudflareBindings {
 export interface CloudflarePlatformOptions {
   /** Öffentliche Basis-URL für Objektspeicher-Links (R2). */
   mediaBaseUrl?: string;
+  /** searchable Field-Keys pro Collection. Gesetzt -> FTS5-Adapter (M1-14). */
+  searchableFieldsByCollection?: Record<string, string[]>;
 }
 
 function r2Storage(bucket: R2Bucket, baseUrl: string): ObjectStorage {
@@ -67,14 +76,20 @@ export function createCloudflarePlatform(
   executionCtx: ExecutionContext,
   options: CloudflarePlatformOptions = {},
 ): Platform {
+  const db = drizzle(env.DB);
+  const fields = options.searchableFieldsByCollection ?? {};
+  const search =
+    Object.keys(fields).length > 0
+      ? createFts5SearchAdapter(db, { fieldsByCollection: fields })
+      : noopSearch;
   return {
-    db: drizzle(env.DB),
+    db,
     storage: r2Storage(env.MEDIA, options.mediaBaseUrl ?? '/media'),
     kv: kvStore(env.CACHE),
     defer(work) {
       executionCtx.waitUntil(work());
     },
-    search: noopSearch,
+    search,
     events: noopEvents,
   };
 }

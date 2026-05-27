@@ -1,5 +1,11 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
-import { contentRoutes, internalRoutes, openApiDocument, type Platform } from '@workerpress/core';
+import {
+  contentRoutes,
+  internalRoutes,
+  openApiDocument,
+  type Platform,
+  searchableFields,
+} from '@workerpress/core';
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
@@ -36,7 +42,16 @@ const internal = new Hono<AppEnv>()
 export const app = new Hono<AppEnv>()
   // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
   .use('*', async (c, next) => {
-    c.set('platform', createCloudflarePlatform(c.env, c.executionCtx, { mediaBaseUrl: '/media' }));
+    c.set(
+      'platform',
+      createCloudflarePlatform(c.env, c.executionCtx, {
+        mediaBaseUrl: '/media',
+        searchableFieldsByCollection: {
+          blog: searchableFields(blog),
+          pages: searchableFields(pages),
+        },
+      }),
+    );
     await next();
   })
   .get('/api/health', (c) => {
