@@ -1,13 +1,15 @@
 import { defineMiddleware } from 'astro:middleware';
-import { env } from 'cloudflare:workers';
-import { getSession } from './server/auth.js';
+import { resolveUser } from './server/auth.js';
 
-/** Schützt /admin-Pages. API-Endpoints werden in Hono geschützt (siehe ARCHITECTURE §2). */
+/**
+ * Schützt /admin-Pages. /api/*-Endpunkte werden in Hono (über `c.var.user` +
+ * Collection-Policies) geschützt; siehe ARCHITECTURE §2 / M1-7+M1-8.
+ */
 export const onRequest = defineMiddleware(async (ctx, next) => {
   if (ctx.url.pathname.startsWith('/admin')) {
-    const session = await getSession(ctx.request, env);
-    if (!session) return ctx.redirect('/login');
-    ctx.locals.user = session.user;
+    const user = await resolveUser(ctx.request);
+    if (!user) return ctx.redirect('/login');
+    ctx.locals.user = user;
   }
   return next();
 });

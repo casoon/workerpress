@@ -12,10 +12,10 @@ import { type Context, Hono } from 'hono';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
 import { collectionRepository, type ListOptions } from '../db/repository.js';
-import type { Platform, SearchableDoc } from '../platform/index.js';
+import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
 
-type Env = { Variables: { platform: Platform } };
+type Env = { Variables: { platform: Platform; user?: AuthUser } };
 
 function parseListQuery(c: Context<Env>): ListOptions {
   const { limit, offset, orderBy, order, ...where } = c.req.query();
@@ -47,6 +47,16 @@ export function internalRoutes(collection: CollectionConfig) {
   const fields = searchableFields(collection);
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
 
+  async function authorize(
+    c: Context<Env>,
+    op: 'read' | 'write',
+    doc?: Record<string, unknown>,
+  ): Promise<boolean> {
+    const policy = op === 'read' ? collection.access?.read : collection.access?.write;
+    if (!policy) return true;
+    return Boolean(await policy.check({ user: c.var.user, doc }));
+  }
+
   function indexAfter(c: Context<Env>, record: Record<string, unknown>): void {
     if (fields.length === 0) return;
     const id = typeof record.id === 'string' ? record.id : undefined;
@@ -72,11 +82,15 @@ export function internalRoutes(collection: CollectionConfig) {
     })
     .get('/:id', async (c) => {
       const record = await repo(c).get(c.req.param('id'));
-      return record ? c.json(record) : c.json({ error: 'not found' }, 404);
+      if (!record) return c.json({ error: 'not found' }, 404);
+      // Auf 404 zu mappen, vermeidet, dass die Existenz des Datensatzes geleakt wird.
+      if (!(await authorize(c, 'read', record))) return c.json({ error: 'not found' }, 404);
+      return c.json(record);
     })
     .post('/', async (c) => {
       const parsed = schemas.insert.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+      if (!(await authorize(c, 'write'))) return c.json({ error: 'forbidden' }, 403);
       const record = await repo(c).create(parsed.data as Record<string, unknown>);
       indexAfter(c, record);
       return c.json(record, 201);
@@ -84,6 +98,9 @@ export function internalRoutes(collection: CollectionConfig) {
     .put('/:id', async (c) => {
       const parsed = schemas.update.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+      const existing = await repo(c).get(c.req.param('id'));
+      if (!existing) return c.json({ error: 'not found' }, 404);
+      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
       const record = await repo(c).update(
         c.req.param('id'),
         parsed.data as Record<string, unknown>,
@@ -93,6 +110,9 @@ export function internalRoutes(collection: CollectionConfig) {
     })
     .delete('/:id', async (c) => {
       const id = c.req.param('id');
+      const existing = await repo(c).get(id);
+      if (!existing) return c.json({ error: 'not found' }, 404);
+      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
       const ok = await repo(c).remove(id);
       if (ok) removeAfter(c, id);
       return ok ? c.body(null, 204) : c.json({ error: 'not found' }, 404);

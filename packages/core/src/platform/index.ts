@@ -41,6 +41,25 @@ export interface EventBus {
   emit<E extends string>(event: E, payload: unknown): void;
 }
 
+/** Authentifizierter Nutzer — minimaler Kontrakt, der für Policies reicht. */
+export interface AuthUser {
+  id: string;
+  email: string;
+  groups?: string[];
+}
+
+/** Liefert den authentifizierten Nutzer für eine Anfrage (oder null). */
+export interface AuthVerifier {
+  verify(request: Request): Promise<AuthUser | null>;
+}
+
+/** Auth-Stub für Plattformen ohne eigene Auth-Integration (immer null). */
+export const noopAuth: AuthVerifier = {
+  async verify() {
+    return null;
+  },
+};
+
 /** Drizzle-Datenbank-Handle (libSQL: D1 ODER Bunny Database). */
 // biome-ignore lint/suspicious/noExplicitAny: konkreter Drizzle-Typ wird beim Adapter gesetzt
 export type DrizzleDatabase = any;
@@ -52,4 +71,6 @@ export interface Platform {
   defer(work: () => Promise<void>): void;
   search: SearchAdapter;
   events: EventBus;
+  /** Resolves the authenticated user from an incoming Request (M1-7). */
+  auth: AuthVerifier;
 }

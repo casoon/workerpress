@@ -1,5 +1,6 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import {
+  type AuthUser,
   contentRoutes,
   internalRoutes,
   openApiDocument,
@@ -9,6 +10,7 @@ import {
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
+import { ACCESS_TEAM_DOMAIN, resolveUser } from './auth.js';
 import { notesRoutes } from './routes/internal/notes.js';
 import { smokeRoutes } from './routes/internal/smoke.js';
 
@@ -22,7 +24,7 @@ import { smokeRoutes } from './routes/internal/smoke.js';
  */
 
 type Bindings = Env;
-type Variables = { platform: Platform };
+type Variables = { platform: Platform; user?: AuthUser };
 type AppEnv = { Bindings: Bindings; Variables: Variables };
 
 // Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
@@ -50,8 +52,11 @@ export const app = new Hono<AppEnv>()
           blog: searchableFields(blog),
           pages: searchableFields(pages),
         },
+        accessTeamDomain: ACCESS_TEAM_DOMAIN,
       }),
     );
+    const user = await resolveUser(c.req.raw);
+    if (user) c.set('user', user);
     await next();
   })
   .get('/api/health', (c) => {

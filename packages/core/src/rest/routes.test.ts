@@ -110,4 +110,59 @@ describe('content vs internal routes', () => {
     const a = app(await setup());
     expect((await post(a, { slug: 'no-title' })).status).toBe(400);
   });
+
+  it('enforces collection access policies (write -> 403, read -> 404 on deny)', async () => {
+    const { definePolicy } = await import('../policies/index.js');
+    const onlyAdmins = definePolicy<unknown, { role?: string }>(
+      'onlyAdmins',
+      ({ user }) => user?.role === 'admin',
+    );
+    const gated = defineCollection({
+      name: 'gated',
+      fields: { title: field.text({ required: true }) },
+      access: { read: onlyAdmins, write: onlyAdmins },
+    });
+    const db = await setup();
+    await db.run(
+      (await import('drizzle-orm'))
+        .sql`CREATE TABLE "gated" ("id" text PRIMARY KEY NOT NULL, "title" text NOT NULL, "data" text NOT NULL DEFAULT '{}')`,
+    );
+
+    function build(user?: { role: string }) {
+      const platform = { db } as unknown as Platform;
+      return new Hono<{ Variables: { platform: Platform; user?: typeof user } }>()
+        .use('*', async (c, next) => {
+          c.set('platform', platform);
+          if (user) c.set('user', user);
+          await next();
+        })
+        .route('/g', internalRoutes(gated));
+    }
+
+    // anonymous: write -> 403
+    const anon = build();
+    expect(
+      (
+        await anon.request('/g', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: 'X' }),
+        })
+      ).status,
+    ).toBe(403);
+
+    // admin: write -> 201, then read -> 200
+    const admin = build({ role: 'admin' });
+    const created = await admin.request('/g', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'X' }),
+    });
+    expect(created.status).toBe(201);
+    const id = ((await created.json()) as { id: string }).id;
+    expect((await admin.request(`/g/${id}`)).status).toBe(200);
+
+    // anonymous reading existing record -> 404 (don't leak existence)
+    expect((await anon.request(`/g/${id}`)).status).toBe(404);
+  });
 });

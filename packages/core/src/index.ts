@@ -44,15 +44,19 @@ export type {
 } from './fields/index.js';
 export { defineField, field } from './fields/index.js';
 export type {
+  AuthUser,
+  AuthVerifier,
   DrizzleDatabase,
   EventBus,
   KeyValue,
   ObjectStorage,
   Platform,
   SearchAdapter,
+  SearchableDoc,
   SearchHit,
   SearchOpts,
 } from './platform/index.js';
+export { noopAuth } from './platform/index.js';
 export type { AdminExtensions, AdminTableConfig, PluginConfig } from './plugins/index.js';
 export { definePlugin } from './plugins/index.js';
 export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/index.js';

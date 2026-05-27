@@ -1,14 +1,20 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import {
+  type AuthVerifier,
   createFts5SearchAdapter,
   type EventBus,
   type KeyValue,
+  noopAuth,
   type ObjectStorage,
   type Platform,
   type SearchAdapter,
 } from '@workerpress/core';
 import { drizzle } from 'drizzle-orm/d1';
+import { createCloudflareAccessAuth } from './access.js';
+
+export type { CloudflareAccessAuthOptions } from './access.js';
+export { createCloudflareAccessAuth } from './access.js';
 
 export interface CloudflareBindings {
   DB: D1Database;
@@ -21,6 +27,12 @@ export interface CloudflarePlatformOptions {
   mediaBaseUrl?: string;
   /** searchable Field-Keys pro Collection. Gesetzt -> FTS5-Adapter (M1-14). */
   searchableFieldsByCollection?: Record<string, string[]>;
+  /** CF-Access-Team-Domain (z. B. `casoon`). Gesetzt -> Auth via Access (M1-7). */
+  accessTeamDomain?: string;
+  /** Optional: AUD-Tag der Access-Application. */
+  accessAudience?: string | string[];
+  /** Optional: eigener Auth-Verifier (z. B. für Tests). Überschreibt access*. */
+  auth?: AuthVerifier;
 }
 
 function r2Storage(bucket: R2Bucket, baseUrl: string): ObjectStorage {
@@ -82,6 +94,14 @@ export function createCloudflarePlatform(
     Object.keys(fields).length > 0
       ? createFts5SearchAdapter(db, { fieldsByCollection: fields })
       : noopSearch;
+  const auth =
+    options.auth ??
+    (options.accessTeamDomain
+      ? createCloudflareAccessAuth({
+          teamDomain: options.accessTeamDomain,
+          audience: options.accessAudience,
+        })
+      : noopAuth);
   return {
     db,
     storage: r2Storage(env.MEDIA, options.mediaBaseUrl ?? '/media'),
@@ -91,5 +111,6 @@ export function createCloudflarePlatform(
     },
     search,
     events: noopEvents,
+    auth,
   };
 }
