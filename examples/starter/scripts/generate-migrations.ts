@@ -7,13 +7,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateMigration, type MigrationSnapshot } from '@workerpress/core';
+import { collectionSnapshot, generateMigration, type MigrationSnapshot } from '@workerpress/core';
 import blog from '../collections/blog.js';
 import pages from '../collections/pages.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDir = join(root, 'migrations');
 const snapshotPath = join(migrationsDir, 'meta', 'collections-snapshot.json');
+const schemaSnapshotPath = join(migrationsDir, 'meta', 'schema-snapshot.json');
 
 const previous: MigrationSnapshot | undefined = existsSync(snapshotPath)
   ? JSON.parse(readFileSync(snapshotPath, 'utf8'))
@@ -36,3 +37,10 @@ if (!sql) {
   writeFileSync(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
   console.log(`Wrote ${next}_collections.sql`);
 }
+
+// Schema-Snapshot immer aktualisieren (für Breaking-Change-Check, M1-13).
+mkdirSync(dirname(schemaSnapshotPath), { recursive: true });
+writeFileSync(
+  schemaSnapshotPath,
+  `${JSON.stringify(collectionSnapshot([blog, pages]), null, 2)}\n`,
+);

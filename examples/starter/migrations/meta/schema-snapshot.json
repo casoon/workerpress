@@ -1,0 +1,109 @@
+[
+  {
+    "name": "blog",
+    "version": 1,
+    "fields": {
+      "title": {
+        "kind": "text",
+        "options": {
+          "required": true,
+          "max": 200
+        }
+      },
+      "slug": {
+        "kind": "slug",
+        "options": {
+          "from": "title",
+          "unique": true,
+          "indexed": true
+        }
+      },
+      "body": {
+        "kind": "richText",
+        "options": {
+          "searchable": true
+        }
+      },
+      "cover": {
+        "kind": "media",
+        "options": {
+          "accept": "image/*"
+        }
+      },
+      "author": {
+        "kind": "relation",
+        "options": {
+          "to": "users"
+        }
+      },
+      "tags": {
+        "kind": "relation",
+        "options": {
+          "to": "tags",
+          "many": true
+        }
+      },
+      "publishedAt": {
+        "kind": "date",
+        "options": {}
+      },
+      "status": {
+        "kind": "enum",
+        "options": {
+          "default": "draft",
+          "indexed": true,
+          "values": ["draft", "published"]
+        }
+      },
+      "site": {
+        "kind": "relation",
+        "options": {
+          "to": "sites",
+          "indexed": true
+        }
+      }
+    }
+  },
+  {
+    "name": "pages",
+    "version": 1,
+    "fields": {
+      "title": {
+        "kind": "text",
+        "options": {
+          "required": true,
+          "max": 200
+        }
+      },
+      "slug": {
+        "kind": "slug",
+        "options": {
+          "from": "title",
+          "unique": true,
+          "indexed": true
+        }
+      },
+      "body": {
+        "kind": "richText",
+        "options": {
+          "searchable": true
+        }
+      },
+      "status": {
+        "kind": "enum",
+        "options": {
+          "default": "draft",
+          "indexed": true,
+          "values": ["draft", "published"]
+        }
+      },
+      "site": {
+        "kind": "relation",
+        "options": {
+          "to": "sites",
+          "indexed": true
+        }
+      }
+    }
+  }
+]

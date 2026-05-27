@@ -9,7 +9,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type InspectTarget, inspect, type MigrationSnapshot } from '@workerpress/core';
+import {
+  type InspectTarget,
+  inspect,
+  type MigrationSnapshot,
+  type SchemaSnapshot,
+} from '@workerpress/core';
 import blog from '../collections/blog.js';
 import pages from '../collections/pages.js';
 
@@ -17,8 +22,12 @@ const collections = [blog, pages];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const snapshotPath = join(root, 'migrations', 'meta', 'collections-snapshot.json');
+const schemaSnapshotPath = join(root, 'migrations', 'meta', 'schema-snapshot.json');
 const previousSnapshot: MigrationSnapshot | undefined = existsSync(snapshotPath)
   ? JSON.parse(readFileSync(snapshotPath, 'utf8'))
+  : undefined;
+const previousSchemaSnapshot: SchemaSnapshot | undefined = existsSync(schemaSnapshotPath)
+  ? JSON.parse(readFileSync(schemaSnapshotPath, 'utf8'))
   : undefined;
 
 const [command, ...rest] = process.argv.slice(2);
@@ -32,7 +41,9 @@ function runInspect(args: string[]): void {
     else if (arg === '--migrations') target = 'migrations';
     else if (!arg.startsWith('--')) collection = arg;
   }
-  process.stdout.write(`${inspect(collections, { collection, target, previousSnapshot })}\n`);
+  process.stdout.write(
+    `${inspect(collections, { collection, target, previousSnapshot, previousSchemaSnapshot })}\n`,
+  );
 }
 
 function printHelp(): void {

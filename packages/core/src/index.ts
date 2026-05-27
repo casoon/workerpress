@@ -12,6 +12,13 @@ export type {
   RevalidateTarget,
 } from './collections/index.js';
 export { defineCollection } from './collections/index.js';
+export type {
+  CollectionSnapshot,
+  FieldSnapshot,
+  SchemaChange,
+  SchemaSnapshot,
+} from './db/diff.js';
+export { collectionSnapshot, diffCollections } from './db/diff.js';
 export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
 export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
 export type { CollectionRepository, ListOptions } from './db/repository.js';

@@ -5,6 +5,12 @@
  */
 
 import type { CollectionConfig } from '../collections/index.js';
+import {
+  collectionSnapshot,
+  diffCollections,
+  type SchemaChange,
+  type SchemaSnapshot,
+} from '../db/diff.js';
 import { generateMigration, type MigrationSnapshot } from '../db/migrate.js';
 import { deriveTable } from '../db/table.js';
 import { collectionSchemas } from '../schema/zod.js';
@@ -15,6 +21,8 @@ export interface InspectOptions {
   collection?: string;
   target?: InspectTarget;
   previousSnapshot?: MigrationSnapshot;
+  /** Vorheriger Schema-Snapshot für die Klassifikation additiv vs. breaking (M1-13). */
+  previousSchemaSnapshot?: SchemaSnapshot;
 }
 
 function describeShape(schema: { shape?: Record<string, unknown> }): string {
@@ -73,6 +81,17 @@ function formatMigration(sql: string | null, label: string): string {
   return `## Migration (${label})\n${indented}`;
 }
 
+function formatChanges(changes: SchemaChange[]): string {
+  if (changes.length === 0) return '## Schema changes\n  none';
+  const lines = ['## Schema changes'];
+  for (const change of changes) {
+    const marker = change.kind === 'breaking' ? '⚠ BREAKING' : '✓ additive';
+    const subject = change.field ? `${change.collection}.${change.field}` : change.collection;
+    lines.push(`  ${marker} [${subject}] ${change.description}`);
+  }
+  return lines.join('\n');
+}
+
 /** Liefert eine menschenlesbare Beschreibung der generierten Realität. */
 export function inspect(collections: CollectionConfig[], opts: InspectOptions = {}): string {
   const target: InspectTarget = opts.target ?? 'all';
@@ -90,8 +109,21 @@ export function inspect(collections: CollectionConfig[], opts: InspectOptions = 
     if (target === 'all' || target === 'routes') sections.push(formatRoutes(collection));
   }
   if (target === 'all' || target === 'migrations') {
-    const { sql } = generateMigration(filtered, opts.previousSnapshot);
+    // Bei Collection-Filter auch die Snapshots auf dieselbe Auswahl reduzieren,
+    // damit andere Collections nicht fälschlich als „entfernt" auftauchen.
+    const prevMigration = opts.collection
+      ? opts.previousSnapshot?.filter((t) => t.name === opts.collection)
+      : opts.previousSnapshot;
+    const { sql } = generateMigration(filtered, prevMigration);
     sections.push(formatMigration(sql, opts.previousSnapshot ? 'next vs snapshot' : 'initial'));
+
+    if (opts.previousSchemaSnapshot) {
+      const prevSchema = opts.collection
+        ? opts.previousSchemaSnapshot.filter((c) => c.name === opts.collection)
+        : opts.previousSchemaSnapshot;
+      const changes = diffCollections(prevSchema, collectionSnapshot(filtered));
+      sections.push(formatChanges(changes));
+    }
   }
   return sections.join('\n\n');
 }
