@@ -15,7 +15,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "test": "vitest run",
     "typecheck": "astro check",
-    "cms": "workerpress"
+    "cms": "tsx scripts/cms.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.5.4",

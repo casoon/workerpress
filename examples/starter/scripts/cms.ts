@@ -1,0 +1,58 @@
+/**
+ * Starter-CLI für den Collection-DSL. Lädt die Collections (TS via tsx) und
+ * delegiert an die programmatische API in `@workerpress/core`. Vorläufer der
+ * Discovery-fähigen `workerpress`-CLI.
+ *
+ * Nutzung: pnpm cms inspect [collection] [--routes|--schema|--migrations]
+ */
+
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { type InspectTarget, inspect, type MigrationSnapshot } from '@workerpress/core';
+import blog from '../collections/blog.js';
+import pages from '../collections/pages.js';
+
+const collections = [blog, pages];
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const snapshotPath = join(root, 'migrations', 'meta', 'collections-snapshot.json');
+const previousSnapshot: MigrationSnapshot | undefined = existsSync(snapshotPath)
+  ? JSON.parse(readFileSync(snapshotPath, 'utf8'))
+  : undefined;
+
+const [command, ...rest] = process.argv.slice(2);
+
+function runInspect(args: string[]): void {
+  let target: InspectTarget = 'all';
+  let collection: string | undefined;
+  for (const arg of args) {
+    if (arg === '--routes') target = 'routes';
+    else if (arg === '--schema') target = 'schema';
+    else if (arg === '--migrations') target = 'migrations';
+    else if (!arg.startsWith('--')) collection = arg;
+  }
+  process.stdout.write(`${inspect(collections, { collection, target, previousSnapshot })}\n`);
+}
+
+function printHelp(): void {
+  process.stdout.write(
+    'WorkerPress Starter CMS\n\nUsage: pnpm cms <command>\n\nCommands:\n  inspect [collection] [--routes|--schema|--migrations]\n',
+  );
+}
+
+switch (command) {
+  case 'inspect':
+    runInspect(rest);
+    break;
+  case undefined:
+  case 'help':
+  case '--help':
+  case '-h':
+    printHelp();
+    break;
+  default:
+    process.stderr.write(`[cms] Unknown command: ${command}\n`);
+    printHelp();
+    process.exit(1);
+}
