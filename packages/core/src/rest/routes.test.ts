@@ -231,11 +231,7 @@ describe('lifecycle hooks (M2-2)', () => {
     expect(res.status).toBe(201);
     const rec = (await res.json()) as { slug: string };
     expect(rec.slug).toBe('hello-world');
-    expect(order).toEqual([
-      'before-early:hooked:create',
-      'before-late',
-      'after:hello-world',
-    ]);
+    expect(order).toEqual(['before-early:hooked:create', 'before-late', 'after:hello-world']);
   });
 
   it('returns 422 when a beforeChange hook throws', async () => {

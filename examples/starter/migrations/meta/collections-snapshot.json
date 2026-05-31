@@ -49,23 +49,17 @@
     "indexes": [
       {
         "name": "blog_slug_idx",
-        "columns": [
-          "slug"
-        ],
+        "columns": ["slug"],
         "unique": true
       },
       {
         "name": "blog_status_idx",
-        "columns": [
-          "status"
-        ],
+        "columns": ["status"],
         "unique": false
       },
       {
         "name": "blog_site_idx",
-        "columns": [
-          "site"
-        ],
+        "columns": ["site"],
         "unique": false
       }
     ],
@@ -111,23 +105,17 @@
     "indexes": [
       {
         "name": "pages_slug_idx",
-        "columns": [
-          "slug"
-        ],
+        "columns": ["slug"],
         "unique": true
       },
       {
         "name": "pages_status_idx",
-        "columns": [
-          "status"
-        ],
+        "columns": ["status"],
         "unique": false
       },
       {
         "name": "pages_site_idx",
-        "columns": [
-          "site"
-        ],
+        "columns": ["site"],
         "unique": false
       }
     ],
@@ -178,16 +166,12 @@
     "indexes": [
       {
         "name": "comments_post_idx",
-        "columns": [
-          "post"
-        ],
+        "columns": ["post"],
         "unique": false
       },
       {
         "name": "comments_status_idx",
-        "columns": [
-          "status"
-        ],
+        "columns": ["status"],
         "unique": false
       }
     ],

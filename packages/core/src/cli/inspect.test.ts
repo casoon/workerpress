@@ -37,10 +37,7 @@ describe('inspect', () => {
       name: 'hooked',
       fields: { title: field.text() },
       hooks: {
-        beforeChange: [
-          function slugify() {},
-          { handler: function guard() {}, priority: -5 },
-        ],
+        beforeChange: [function slugify() {}, { handler: function guard() {}, priority: -5 }],
       },
     });
     const out = inspect([hooked], { target: 'hooks' });

@@ -27,10 +27,7 @@ export function sortHooks(entries: HookEntry[] = []): HookFn[] {
 }
 
 /** Führt alle Hooks einer Phase nacheinander aus. Wirft, sobald ein Hook wirft. */
-export async function runHooks(
-  entries: HookEntry[] | undefined,
-  ctx: HookContext,
-): Promise<void> {
+export async function runHooks(entries: HookEntry[] | undefined, ctx: HookContext): Promise<void> {
   for (const handler of sortHooks(entries)) {
     await handler(ctx);
   }

@@ -52,10 +52,7 @@
         "options": {
           "default": "draft",
           "indexed": true,
-          "values": [
-            "draft",
-            "published"
-          ]
+          "values": ["draft", "published"]
         }
       },
       "site": {
@@ -97,10 +94,7 @@
         "options": {
           "default": "draft",
           "indexed": true,
-          "values": [
-            "draft",
-            "published"
-          ]
+          "values": ["draft", "published"]
         }
       },
       "site": {
@@ -142,10 +136,7 @@
         "options": {
           "default": "pending",
           "indexed": true,
-          "values": [
-            "pending",
-            "approved"
-          ]
+          "values": ["pending", "approved"]
         }
       },
       "createdAt": {
