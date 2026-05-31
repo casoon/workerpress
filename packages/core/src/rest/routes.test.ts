@@ -139,17 +139,15 @@ describe('content vs internal routes', () => {
         .route('/g', internalRoutes(gated));
     }
 
-    // anonymous: write -> 403
+    // anonymous: write -> 403 with policy name
     const anon = build();
-    expect(
-      (
-        await anon.request('/g', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ title: 'X' }),
-        })
-      ).status,
-    ).toBe(403);
+    const forbidden = await anon.request('/g', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'X' }),
+    });
+    expect(forbidden.status).toBe(403);
+    expect(((await forbidden.json()) as { policy?: string }).policy).toBe('onlyAdmins');
 
     // admin: write -> 201, then read -> 200
     const admin = build({ role: 'admin' });
@@ -164,5 +162,13 @@ describe('content vs internal routes', () => {
 
     // anonymous reading existing record -> 404 (don't leak existence)
     expect((await anon.request(`/g/${id}`)).status).toBe(404);
+
+    // anonymous: list -> empty (read policy filters server-side)
+    const list = (await (await anon.request('/g')).json()) as unknown[];
+    expect(list).toHaveLength(0);
+
+    // admin: list -> sees the record
+    const adminList = (await (await admin.request('/g')).json()) as unknown[];
+    expect(adminList).toHaveLength(1);
   });
 });

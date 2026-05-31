@@ -1,0 +1,27 @@
+---
+import CollectionForm from '@workerpress/ui/components/CollectionForm.svelte';
+import { adminSchema } from '@workerpress/core';
+import blog from '../../../../collections/blog.js';
+
+const schema = adminSchema(blog);
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{schema.singular} anlegen · Admin</title>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/admin/blog">← {schema.plural}</a></nav>
+      <h1>{schema.singular} anlegen</h1>
+      <CollectionForm
+        {schema}
+        listUrl="/admin/blog"
+        client:load
+      />
+    </main>
+  </body>
+</html>

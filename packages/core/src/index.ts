@@ -2,6 +2,8 @@
  * @workerpress/core — öffentliche API-Oberfläche.
  */
 
+export type { AdminCollectionSchema, AdminField, AdminFieldOptions } from './admin/schema.js';
+export { adminSchema } from './admin/schema.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
 export type {

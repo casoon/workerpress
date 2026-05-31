@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
 import { ACCESS_TEAM_DOMAIN, resolveUser } from './auth.js';
+import { mediaRoutes } from './routes/internal/media.js';
 import { notesRoutes } from './routes/internal/notes.js';
 import { smokeRoutes } from './routes/internal/smoke.js';
 
@@ -38,6 +39,7 @@ const internal = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
   .route('/notes', notesRoutes)
   .route('/smoke', smokeRoutes)
+  .route('/media', mediaRoutes)
   .route('/content/blog', internalRoutes(blog))
   .route('/content/pages', internalRoutes(pages));
 

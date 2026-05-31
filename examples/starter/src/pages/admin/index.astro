@@ -1,7 +1,10 @@
 ---
 import NotesPanel from '../../admin/islands/NotesPanel.svelte';
+import blog from '../../../collections/blog.js';
+import pages from '../../../collections/pages.js';
 
 const user = Astro.locals.user;
+const collections = [blog, pages];
 ---
 
 <!doctype html>
@@ -14,7 +17,16 @@ const user = Astro.locals.user;
   <body>
     <main>
       <h1>Admin</h1>
-      <p>Angemeldet als: {user ? JSON.stringify(user) : 'unbekannt'}</p>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+
+      <h2>Collections</h2>
+      <ul>
+        {collections.map((c) => (
+          <li><a href={`/admin/${c.name}`}>{c.labels?.plural ?? c.name}</a></li>
+        ))}
+      </ul>
+
+      <hr />
       <h2>Notes</h2>
       <NotesPanel client:load />
     </main>

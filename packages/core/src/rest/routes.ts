@@ -51,10 +51,11 @@ export function internalRoutes(collection: CollectionConfig) {
     c: Context<Env>,
     op: 'read' | 'write',
     doc?: Record<string, unknown>,
-  ): Promise<boolean> {
+  ): Promise<{ allowed: true } | { allowed: false; policy: string }> {
     const policy = op === 'read' ? collection.access?.read : collection.access?.write;
-    if (!policy) return true;
-    return Boolean(await policy.check({ user: c.var.user, doc }));
+    if (!policy) return { allowed: true };
+    const ok = Boolean(await policy.check({ user: c.var.user, doc }));
+    return ok ? { allowed: true } : { allowed: false, policy: policy.name };
   }
 
   function indexAfter(c: Context<Env>, record: Record<string, unknown>): void {
@@ -72,7 +73,16 @@ export function internalRoutes(collection: CollectionConfig) {
   }
 
   return new Hono<Env>()
-    .get('/', async (c) => c.json(await repo(c).list(parseListQuery(c))))
+    .get('/', async (c) => {
+      const rows = await repo(c).list(parseListQuery(c));
+      const readPolicy = collection.access?.read;
+      if (!readPolicy) return c.json(rows);
+      const filtered: typeof rows = [];
+      for (const row of rows) {
+        if (await readPolicy.check({ user: c.var.user, doc: row })) filtered.push(row);
+      }
+      return c.json(filtered);
+    })
     .get('/search', async (c) => {
       const q = c.req.query('q');
       if (!q) return c.json({ error: 'missing q' }, 400);
@@ -84,13 +94,15 @@ export function internalRoutes(collection: CollectionConfig) {
       const record = await repo(c).get(c.req.param('id'));
       if (!record) return c.json({ error: 'not found' }, 404);
       // Auf 404 zu mappen, vermeidet, dass die Existenz des Datensatzes geleakt wird.
-      if (!(await authorize(c, 'read', record))) return c.json({ error: 'not found' }, 404);
+      const auth = await authorize(c, 'read', record);
+      if (!auth.allowed) return c.json({ error: 'not found' }, 404);
       return c.json(record);
     })
     .post('/', async (c) => {
       const parsed = schemas.insert.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-      if (!(await authorize(c, 'write'))) return c.json({ error: 'forbidden' }, 403);
+      const auth = await authorize(c, 'write');
+      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
       const record = await repo(c).create(parsed.data as Record<string, unknown>);
       indexAfter(c, record);
       return c.json(record, 201);
@@ -100,7 +112,8 @@ export function internalRoutes(collection: CollectionConfig) {
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
       const existing = await repo(c).get(c.req.param('id'));
       if (!existing) return c.json({ error: 'not found' }, 404);
-      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
+      const auth = await authorize(c, 'write', existing);
+      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
       const record = await repo(c).update(
         c.req.param('id'),
         parsed.data as Record<string, unknown>,
@@ -112,7 +125,8 @@ export function internalRoutes(collection: CollectionConfig) {
       const id = c.req.param('id');
       const existing = await repo(c).get(id);
       if (!existing) return c.json({ error: 'not found' }, 404);
-      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
+      const auth = await authorize(c, 'write', existing);
+      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
       const ok = await repo(c).remove(id);
       if (ok) removeAfter(c, id);
       return ok ? c.body(null, 204) : c.json({ error: 'not found' }, 404);
