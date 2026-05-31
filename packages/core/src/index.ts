@@ -63,8 +63,14 @@ export type {
   SearchOpts,
 } from './platform/index.js';
 export { noopAuth } from './platform/index.js';
-export type { AdminExtensions, AdminTableConfig, PluginConfig } from './plugins/index.js';
-export { definePlugin } from './plugins/index.js';
+export type {
+  AdminExtensions,
+  AdminNavItem,
+  AdminTableConfig,
+  PluginConfig,
+  ResolvedPlugins,
+} from './plugins/index.js';
+export { definePlugin, describePlugins, resolvePlugins } from './plugins/index.js';
 export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/index.js';
 export { allOf, anyOf, definePolicy } from './policies/index.js';
 export type { OpenApiInfo } from './rest/openapi.js';

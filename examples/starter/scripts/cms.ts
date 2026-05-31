@@ -10,15 +10,20 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  describePlugins,
   type InspectTarget,
   inspect,
   type MigrationSnapshot,
+  resolvePlugins,
   type SchemaSnapshot,
 } from '@workerpress/core';
 import blog from '../collections/blog.js';
 import pages from '../collections/pages.js';
+import { plugins } from '../plugins/index.js';
 
-const collections = [blog, pages];
+// First-Party + automatisch aufgelöste Plugin-Collections (M2-1), damit z. B.
+// `cms inspect comments` und die Tabellenliste die Plugin-Collection enthalten.
+const collections = [blog, pages, ...resolvePlugins(plugins).collections];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const snapshotPath = join(root, 'migrations', 'meta', 'collections-snapshot.json');
@@ -39,6 +44,7 @@ function runInspect(args: string[]): void {
     if (arg === '--routes') target = 'routes';
     else if (arg === '--schema') target = 'schema';
     else if (arg === '--migrations') target = 'migrations';
+    else if (arg === '--hooks') target = 'hooks';
     else if (!arg.startsWith('--')) collection = arg;
   }
   process.stdout.write(
@@ -48,13 +54,18 @@ function runInspect(args: string[]): void {
 
 function printHelp(): void {
   process.stdout.write(
-    'WorkerPress Starter CMS\n\nUsage: pnpm cms <command>\n\nCommands:\n  inspect [collection] [--routes|--schema|--migrations]\n',
+    'WorkerPress Starter CMS\n\nUsage: pnpm cms <command>\n\nCommands:\n' +
+      '  inspect [collection] [--routes|--schema|--migrations|--hooks]\n' +
+      '  plugins\n',
   );
 }
 
 switch (command) {
   case 'inspect':
     runInspect(rest);
+    break;
+  case 'plugins':
+    process.stdout.write(`${describePlugins(plugins)}\n`);
     break;
   case undefined:
   case 'help':

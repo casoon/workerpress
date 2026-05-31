@@ -49,17 +49,23 @@
     "indexes": [
       {
         "name": "blog_slug_idx",
-        "columns": ["slug"],
+        "columns": [
+          "slug"
+        ],
         "unique": true
       },
       {
         "name": "blog_status_idx",
-        "columns": ["status"],
+        "columns": [
+          "status"
+        ],
         "unique": false
       },
       {
         "name": "blog_site_idx",
-        "columns": ["site"],
+        "columns": [
+          "site"
+        ],
         "unique": false
       }
     ],
@@ -105,17 +111,83 @@
     "indexes": [
       {
         "name": "pages_slug_idx",
-        "columns": ["slug"],
+        "columns": [
+          "slug"
+        ],
         "unique": true
       },
       {
         "name": "pages_status_idx",
-        "columns": ["status"],
+        "columns": [
+          "status"
+        ],
         "unique": false
       },
       {
         "name": "pages_site_idx",
-        "columns": ["site"],
+        "columns": [
+          "site"
+        ],
+        "unique": false
+      }
+    ],
+    "jsonColumn": "data"
+  },
+  {
+    "name": "comments",
+    "columns": [
+      {
+        "name": "id",
+        "type": "text",
+        "notNull": true,
+        "primaryKey": true
+      },
+      {
+        "name": "post",
+        "type": "text",
+        "notNull": false
+      },
+      {
+        "name": "author",
+        "type": "text",
+        "notNull": true
+      },
+      {
+        "name": "body",
+        "type": "text",
+        "notNull": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "notNull": false,
+        "default": "pending"
+      },
+      {
+        "name": "createdAt",
+        "type": "integer",
+        "notNull": false
+      },
+      {
+        "name": "data",
+        "type": "text",
+        "notNull": true,
+        "default": "{}"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "comments_post_idx",
+        "columns": [
+          "post"
+        ],
+        "unique": false
+      },
+      {
+        "name": "comments_status_idx",
+        "columns": [
+          "status"
+        ],
         "unique": false
       }
     ],

@@ -52,7 +52,10 @@
         "options": {
           "default": "draft",
           "indexed": true,
-          "values": ["draft", "published"]
+          "values": [
+            "draft",
+            "published"
+          ]
         }
       },
       "site": {
@@ -94,7 +97,10 @@
         "options": {
           "default": "draft",
           "indexed": true,
-          "values": ["draft", "published"]
+          "values": [
+            "draft",
+            "published"
+          ]
         }
       },
       "site": {
@@ -103,6 +109,48 @@
           "to": "sites",
           "indexed": true
         }
+      }
+    }
+  },
+  {
+    "name": "comments",
+    "version": 1,
+    "fields": {
+      "post": {
+        "kind": "relation",
+        "options": {
+          "to": "blog",
+          "indexed": true
+        }
+      },
+      "author": {
+        "kind": "text",
+        "options": {
+          "required": true,
+          "max": 120
+        }
+      },
+      "body": {
+        "kind": "text",
+        "options": {
+          "required": true,
+          "searchable": true
+        }
+      },
+      "status": {
+        "kind": "enum",
+        "options": {
+          "default": "pending",
+          "indexed": true,
+          "values": [
+            "pending",
+            "approved"
+          ]
+        }
+      },
+      "createdAt": {
+        "kind": "date",
+        "options": {}
       }
     }
   }

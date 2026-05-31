@@ -5,11 +5,13 @@ import {
   internalRoutes,
   openApiDocument,
   type Platform,
+  resolvePlugins,
   searchableFields,
 } from '@workerpress/core';
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
+import { plugins } from '../../plugins/index.js';
 import { ACCESS_TEAM_DOMAIN, resolveUser } from './auth.js';
 import { mediaRoutes } from './routes/internal/media.js';
 import { notesRoutes } from './routes/internal/notes.js';
@@ -43,6 +45,27 @@ const internal = new Hono<AppEnv>()
   .route('/content/blog', internalRoutes(blog))
   .route('/content/pages', internalRoutes(pages));
 
+// Plugin-Registry (M2-1): in Abhängigkeitsreihenfolge aufgelöst und automatisch
+// gemountet. Plugin-Collections erhalten dieselben Content-/Internal-Routen wie
+// First-Party-Collections; eigene Plugin-Routen landen unter /internal/plugins.
+const resolved = resolvePlugins(plugins);
+const pluginRoutes = new Hono<AppEnv>();
+for (const plugin of resolved.plugins) plugin.routes?.(pluginRoutes);
+internal.route('/plugins', pluginRoutes);
+for (const collection of resolved.collections) {
+  content.route(`/${collection.name}`, contentRoutes(collection));
+  internal.route(`/content/${collection.name}`, internalRoutes(collection));
+}
+
+// FTS5-Felder pro Collection (First-Party + Plugins) für den Such-Adapter.
+const searchableFieldsByCollection: Record<string, string[]> = {
+  blog: searchableFields(blog),
+  pages: searchableFields(pages),
+};
+for (const collection of resolved.collections) {
+  searchableFieldsByCollection[collection.name] = searchableFields(collection);
+}
+
 export const app = new Hono<AppEnv>()
   // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
   .use('*', async (c, next) => {
@@ -50,10 +73,7 @@ export const app = new Hono<AppEnv>()
       'platform',
       createCloudflarePlatform(c.env, c.executionCtx, {
         mediaBaseUrl: '/media',
-        searchableFieldsByCollection: {
-          blog: searchableFields(blog),
-          pages: searchableFields(pages),
-        },
+        searchableFieldsByCollection,
         accessTeamDomain: ACCESS_TEAM_DOMAIN,
       }),
     );
@@ -82,7 +102,12 @@ export const app = new Hono<AppEnv>()
     });
   })
   .get('/api/docs', (c) =>
-    c.json(openApiDocument([blog, pages], { title: 'WorkerPress Starter API', version: '0.0.0' })),
+    c.json(
+      openApiDocument([blog, pages, ...resolved.collections], {
+        title: 'WorkerPress Starter API',
+        version: '0.0.0',
+      }),
+    ),
   )
   .route('/api/content', content)
   .route('/api/internal', internal);
