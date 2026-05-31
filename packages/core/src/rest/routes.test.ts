@@ -6,7 +6,7 @@ import { defineCollection } from '../collections/index.js';
 import { generateMigration } from '../db/migrate.js';
 import { collectionRepository } from '../db/repository.js';
 import { field } from '../fields/index.js';
-import type { Platform } from '../platform/index.js';
+import type { AuthUser, Platform } from '../platform/index.js';
 import { contentRoutes, internalRoutes } from './routes.js';
 
 const articles = defineCollection({
@@ -170,5 +170,108 @@ describe('content vs internal routes', () => {
     // admin: list -> sees the record
     const adminList = (await (await admin.request('/g')).json()) as unknown[];
     expect(adminList).toHaveLength(1);
+  });
+});
+
+describe('lifecycle hooks (M2-2)', () => {
+  async function setupWith(collection: ReturnType<typeof defineCollection>) {
+    const client = createClient({ url: ':memory:' });
+    const db = drizzle(client);
+    const { sql } = generateMigration([collection]);
+    await client.executeMultiple(sql as string);
+    return db;
+  }
+
+  function appFor(
+    db: ReturnType<typeof drizzle>,
+    collection: ReturnType<typeof defineCollection>,
+    user?: AuthUser,
+  ) {
+    const platform = { db } as unknown as Platform;
+    return new Hono<{ Variables: { platform: Platform; user?: AuthUser } }>()
+      .use('*', async (c, next) => {
+        c.set('platform', platform);
+        if (user) c.set('user', user);
+        await next();
+      })
+      .route('/c', internalRoutes(collection));
+  }
+
+  function post(a: ReturnType<typeof appFor>, body: unknown) {
+    return a.request('/c', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('runs beforeChange (priority-ordered, mutating doc) then afterChange on create', async () => {
+    const order: string[] = [];
+    const collection = defineCollection({
+      name: 'hooked',
+      fields: { title: field.text({ required: true }), slug: field.slug() },
+      hooks: {
+        beforeChange: [
+          { handler: () => void order.push('before-late'), priority: 5 },
+          {
+            handler: ({ doc, collection: name, operation }) => {
+              order.push(`before-early:${name}:${operation}`);
+              if (!doc.slug && typeof doc.title === 'string') {
+                doc.slug = doc.title.toLowerCase().replace(/\s+/g, '-');
+              }
+            },
+            priority: -1,
+          },
+        ],
+        afterChange: [({ doc }) => void order.push(`after:${doc.slug}`)],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    const res = await post(a, { title: 'Hello World' });
+    expect(res.status).toBe(201);
+    const rec = (await res.json()) as { slug: string };
+    expect(rec.slug).toBe('hello-world');
+    expect(order).toEqual([
+      'before-early:hooked:create',
+      'before-late',
+      'after:hello-world',
+    ]);
+  });
+
+  it('returns 422 when a beforeChange hook throws', async () => {
+    const collection = defineCollection({
+      name: 'guarded',
+      fields: { title: field.text({ required: true }) },
+      hooks: {
+        beforeChange: [
+          () => {
+            throw new Error('title is taken');
+          },
+        ],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    const res = await post(a, { title: 'x' });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: 'title is taken' });
+  });
+
+  it('supports async hooks', async () => {
+    let ran = false;
+    const collection = defineCollection({
+      name: 'asyncc',
+      fields: { title: field.text({ required: true }) },
+      hooks: {
+        beforeChange: [
+          async () => {
+            await Promise.resolve();
+            ran = true;
+          },
+        ],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    expect((await post(a, { title: 'x' })).status).toBe(201);
+    expect(ran).toBe(true);
   });
 });

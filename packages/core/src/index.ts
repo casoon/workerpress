@@ -10,7 +10,10 @@ export type {
   CollectionConfig,
   CollectionHooks,
   CollectionLabels,
+  HookContext,
+  HookEntry,
   HookFn,
+  PrioritizedHook,
   RevalidateTarget,
 } from './collections/index.js';
 export { defineCollection } from './collections/index.js';
@@ -45,6 +48,7 @@ export type {
   FieldType,
 } from './fields/index.js';
 export { defineField, field } from './fields/index.js';
+export { runHooks, sortHooks } from './hooks/index.js';
 export type {
   AuthUser,
   AuthVerifier,

@@ -12,6 +12,7 @@ import { type Context, Hono } from 'hono';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
 import { collectionRepository, type ListOptions } from '../db/repository.js';
+import { runHooks } from '../hooks/index.js';
 import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
 
@@ -72,6 +73,42 @@ export function internalRoutes(collection: CollectionConfig) {
     c.var.platform.defer(() => c.var.platform.search.remove(collection.name, id));
   }
 
+  // Lifecycle-Hooks (M2-2). `beforeChange` darf `doc` mutieren und abbrechen:
+  // wirft ein Hook, antworten wir mit 422 (Rückgabe = fertige Response). Fehler
+  // aus `afterChange` werden bewusst nicht abgefangen — fehleranfällige
+  // Nacharbeit gehört in den Event-Bus (M2-3).
+  async function beforeChange(
+    c: Context<Env>,
+    doc: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): Promise<Response | null> {
+    try {
+      await runHooks(collection.hooks?.beforeChange, {
+        doc,
+        user: c.var.user,
+        collection: collection.name,
+        operation,
+      });
+      return null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'hook rejected the request';
+      return c.json({ error: message }, 422);
+    }
+  }
+
+  async function afterChange(
+    c: Context<Env>,
+    doc: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): Promise<void> {
+    await runHooks(collection.hooks?.afterChange, {
+      doc,
+      user: c.var.user,
+      collection: collection.name,
+      operation,
+    });
+  }
+
   return new Hono<Env>()
     .get('/', async (c) => {
       const rows = await repo(c).list(parseListQuery(c));
@@ -103,7 +140,13 @@ export function internalRoutes(collection: CollectionConfig) {
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
       const auth = await authorize(c, 'write');
       if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
-      const record = await repo(c).create(parsed.data as Record<string, unknown>);
+      // beforeChange läuft nach Validierung/Policy, aber vor der Persistenz und
+      // darf `doc` verändern (z. B. Slug ableiten) oder mit 422 abbrechen.
+      const doc = parsed.data as Record<string, unknown>;
+      const blocked = await beforeChange(c, doc, 'create');
+      if (blocked) return blocked;
+      const record = await repo(c).create(doc);
+      await afterChange(c, record, 'create');
       indexAfter(c, record);
       return c.json(record, 201);
     })
@@ -114,12 +157,14 @@ export function internalRoutes(collection: CollectionConfig) {
       if (!existing) return c.json({ error: 'not found' }, 404);
       const auth = await authorize(c, 'write', existing);
       if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
-      const record = await repo(c).update(
-        c.req.param('id'),
-        parsed.data as Record<string, unknown>,
-      );
-      if (record) indexAfter(c, record);
-      return record ? c.json(record) : c.json({ error: 'not found' }, 404);
+      const doc = parsed.data as Record<string, unknown>;
+      const blocked = await beforeChange(c, doc, 'update');
+      if (blocked) return blocked;
+      const record = await repo(c).update(c.req.param('id'), doc);
+      if (!record) return c.json({ error: 'not found' }, 404);
+      await afterChange(c, record, 'update');
+      indexAfter(c, record);
+      return c.json(record);
     })
     .delete('/:id', async (c) => {
       const id = c.req.param('id');

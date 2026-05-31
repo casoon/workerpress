@@ -29,6 +29,26 @@ describe('inspect', () => {
     expect(out).toContain('GET    /api/content/blog');
     expect(out).toContain('## Migration (initial)');
     expect(out).toContain('CREATE TABLE "blog"');
+    expect(out).toContain('## Hooks for blog');
+  });
+
+  it('--hooks lists registered hooks in execution order with priority', () => {
+    const hooked = defineCollection({
+      name: 'hooked',
+      fields: { title: field.text() },
+      hooks: {
+        beforeChange: [
+          function slugify() {},
+          { handler: function guard() {}, priority: -5 },
+        ],
+      },
+    });
+    const out = inspect([hooked], { target: 'hooks' });
+    expect(out).toContain('## Hooks for hooked');
+    // guard (priority -5) runs before slugify (priority 0)
+    expect(out).toContain('beforeChange: guard(priority=-5), slugify(priority=0)');
+    expect(out).toContain('afterChange: none');
+    expect(out).not.toContain('## Table');
   });
 
   it('--routes filters to the routes section', () => {
