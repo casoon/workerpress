@@ -4,6 +4,7 @@
  * Blackbox (ARCHITECTURE §5).
  */
 
+import { adminSchema } from '../admin/schema.js';
 import type { CollectionConfig } from '../collections/index.js';
 import {
   collectionSnapshot,
@@ -11,11 +12,20 @@ import {
   type SchemaChange,
   type SchemaSnapshot,
 } from '../db/diff.js';
+import { searchableFields } from '../db/fts5.js';
 import { generateMigration, type MigrationSnapshot } from '../db/migrate.js';
 import { deriveTable } from '../db/table.js';
 import { collectionSchemas } from '../schema/zod.js';
 
-export type InspectTarget = 'all' | 'routes' | 'schema' | 'migrations' | 'hooks';
+export type InspectTarget =
+  | 'all'
+  | 'routes'
+  | 'schema'
+  | 'migrations'
+  | 'hooks'
+  | 'policies'
+  | 'forms'
+  | 'search';
 
 export interface InspectOptions {
   collection?: string;
@@ -95,6 +105,30 @@ function formatHooks(collection: CollectionConfig): string {
   return lines.join('\n');
 }
 
+function formatPolicies(collection: CollectionConfig): string {
+  const access = collection.access ?? {};
+  const read = access.read?.name ?? 'public';
+  const write = access.write?.name ?? 'auth (no policy)';
+  return [`## Policies for ${collection.name}`, `  read: ${read}`, `  write: ${write}`].join('\n');
+}
+
+function formatForms(collection: CollectionConfig): string {
+  const schema = adminSchema(collection);
+  const lines = [`## Admin form for ${collection.name}`, `  apiBase: ${schema.apiBase}`];
+  for (const f of schema.fields) {
+    const flags = [f.required ? 'required' : '', f.options.to ? `-> ${f.options.to}` : '']
+      .filter(Boolean)
+      .join(' ');
+    lines.push(`  - ${f.label} (${f.kind})${flags ? ` ${flags}` : ''}`);
+  }
+  return lines.join('\n');
+}
+
+function formatSearch(collection: CollectionConfig): string {
+  const fields = searchableFields(collection);
+  return `## Search fields for ${collection.name}\n  ${fields.length ? fields.join(', ') : 'none'}`;
+}
+
 function formatMigration(sql: string | null, label: string): string {
   if (!sql) return `## Migration (${label})\n  no changes`;
   const indented = sql
@@ -131,6 +165,9 @@ export function inspect(collections: CollectionConfig[], opts: InspectOptions = 
     if (target === 'all' || target === 'schema') sections.push(formatSchema(collection));
     if (target === 'all' || target === 'routes') sections.push(formatRoutes(collection));
     if (target === 'all' || target === 'hooks') sections.push(formatHooks(collection));
+    if (target === 'all' || target === 'policies') sections.push(formatPolicies(collection));
+    if (target === 'all' || target === 'forms') sections.push(formatForms(collection));
+    if (target === 'all' || target === 'search') sections.push(formatSearch(collection));
   }
   if (target === 'all' || target === 'migrations') {
     // Bei Collection-Filter auch die Snapshots auf dieselbe Auswahl reduzieren,

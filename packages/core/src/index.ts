@@ -23,6 +23,18 @@ export {
   revalidateTag,
   siteCacheKey,
 } from './cache/revalidate.js';
+export type {
+  CollectionInfo,
+  DescribeRoutesOptions,
+  RouteInfo,
+} from './cli/describe.js';
+export {
+  collectionRoutes,
+  describeCollectionsData,
+  describeRoutesData,
+  scaffoldCollection,
+} from './cli/describe.js';
+export { color, formatCollections, formatRoutes, renderOutput } from './cli/format.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
 export type { CollectionClient, FindArgs, QueryClientOptions } from './client.js';
