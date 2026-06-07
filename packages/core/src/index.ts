@@ -28,6 +28,8 @@ export type { Fts5AdapterOptions } from './db/fts5.js';
 export { createFts5SearchAdapter, searchableFields } from './db/fts5.js';
 export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
 export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
+export type { CollectionRegistry } from './db/relations.js';
+export { buildRegistry, parseInclude, resolveIncludes } from './db/relations.js';
 export type { CollectionRepository, ListOptions } from './db/repository.js';
 export { collectionRepository } from './db/repository.js';
 export type {
@@ -82,7 +84,8 @@ export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/in
 export { allOf, anyOf, definePolicy } from './policies/index.js';
 export type { OpenApiInfo } from './rest/openapi.js';
 export { openApiDocument } from './rest/openapi.js';
+export type { RouteOptions } from './rest/routes.js';
 export { contentRoutes, internalRoutes } from './rest/routes.js';
-export type { InferInsert, InferSelect } from './schema/types.js';
+export type { InferInsert, InferSelect, WithInclude } from './schema/types.js';
 export type { CollectionSchemas } from './schema/zod.js';
 export { collectionSchemas } from './schema/zod.js';

@@ -11,12 +11,19 @@
 import { type Context, Hono } from 'hono';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
+import { type CollectionRegistry, parseInclude, resolveIncludes } from '../db/relations.js';
 import { collectionRepository, type ListOptions } from '../db/repository.js';
 import { runHooks } from '../hooks/index.js';
 import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
 
 type Env = { Variables: { platform: Platform; user?: AuthUser } };
+
+/** Optionen für die Routen-Generierung (Relation-Auflösung über die Registry). */
+export interface RouteOptions {
+  /** Alle Collections, damit `?include=` Relationen auflösen kann (M2-4). */
+  registry?: CollectionRegistry;
+}
 
 function parseListQuery(c: Context<Env>): ListOptions {
   const { limit, offset, orderBy, order, ...where } = c.req.query();
@@ -43,10 +50,34 @@ function toSearchableDoc(record: Record<string, unknown>, fields: string[]): Sea
   return doc;
 }
 
-export function internalRoutes(collection: CollectionConfig) {
+export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOptions = {}) {
   const schemas = collectionSchemas(collection);
   const fields = searchableFields(collection);
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
+  const registry = routeOpts.registry;
+
+  // Löst `?include=author,tags` auf den gegebenen Zeilen auf (M2-4), sofern eine
+  // Registry vorhanden ist. Ohne Registry/Include bleiben die rohen IDs erhalten.
+  async function withIncludes(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const include = parseInclude(c.req.query('include'));
+    if (!registry || include.length === 0) return rows;
+    return resolveIncludes(c.var.platform.db, collection, rows, include, registry);
+  }
+
+  async function filterByReadPolicy(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+    policy: NonNullable<NonNullable<CollectionConfig['access']>['read']>,
+  ): Promise<Record<string, unknown>[]> {
+    const filtered: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      if (await policy.check({ user: c.var.user, doc: row })) filtered.push(row);
+    }
+    return filtered;
+  }
 
   async function authorize(
     c: Context<Env>,
@@ -131,12 +162,9 @@ export function internalRoutes(collection: CollectionConfig) {
     .get('/', async (c) => {
       const rows = await repo(c).list(parseListQuery(c));
       const readPolicy = collection.access?.read;
-      if (!readPolicy) return c.json(rows);
-      const filtered: typeof rows = [];
-      for (const row of rows) {
-        if (await readPolicy.check({ user: c.var.user, doc: row })) filtered.push(row);
-      }
-      return c.json(filtered);
+      // Policy filtert vor der Relation-Auflösung (kein Leak über `include`).
+      const visible = readPolicy ? await filterByReadPolicy(c, rows, readPolicy) : rows;
+      return c.json(await withIncludes(c, visible));
     })
     .get('/search', async (c) => {
       const q = c.req.query('q');
@@ -151,7 +179,8 @@ export function internalRoutes(collection: CollectionConfig) {
       // Auf 404 zu mappen, vermeidet, dass die Existenz des Datensatzes geleakt wird.
       const auth = await authorize(c, 'read', record);
       if (!auth.allowed) return c.json({ error: 'not found' }, 404);
-      return c.json(record);
+      const [resolved] = await withIncludes(c, [record]);
+      return c.json(resolved);
     })
     .post('/', async (c) => {
       const parsed = schemas.insert.safeParse(await c.req.json().catch(() => null));
@@ -201,14 +230,26 @@ export function internalRoutes(collection: CollectionConfig) {
     });
 }
 
-export function contentRoutes(collection: CollectionConfig) {
+export function contentRoutes(collection: CollectionConfig, routeOpts: RouteOptions = {}) {
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
+  const registry = routeOpts.registry;
+  async function withIncludes(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const include = parseInclude(c.req.query('include'));
+    if (!registry || include.length === 0) return rows;
+    return resolveIncludes(c.var.platform.db, collection, rows, include, registry);
+  }
   return new Hono<Env>()
-    .get('/', async (c) =>
-      c.json(await repo(c).list({ ...parseListQuery(c), publishedOnly: true })),
-    )
+    .get('/', async (c) => {
+      const rows = await repo(c).list({ ...parseListQuery(c), publishedOnly: true });
+      return c.json(await withIncludes(c, rows));
+    })
     .get('/:id', async (c) => {
       const record = await repo(c).get(c.req.param('id'), { publishedOnly: true });
-      return record ? c.json(record) : c.json({ error: 'not found' }, 404);
+      if (!record) return c.json({ error: 'not found' }, 404);
+      const [resolved] = await withIncludes(c, [record]);
+      return c.json(resolved);
     });
 }

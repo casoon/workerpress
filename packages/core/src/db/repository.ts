@@ -23,6 +23,8 @@ export interface ListOptions {
 export interface CollectionRepository {
   list(opts?: ListOptions): Promise<Row[]>;
   get(id: string, opts?: { publishedOnly?: boolean }): Promise<Row | null>;
+  /** Lädt mehrere Datensätze in einer Abfrage (Relation-Auflösung, kein N+1). */
+  byIds(ids: string[]): Promise<Row[]>;
   create(values: Row): Promise<Row>;
   update(id: string, patch: Row): Promise<Row | null>;
   remove(id: string): Promise<boolean>;
@@ -111,6 +113,17 @@ export function collectionRepository(
 
     get(id, opts = {}) {
       return selectById(id, opts.publishedOnly);
+    },
+
+    async byIds(ids) {
+      const unique = [...new Set(ids)].filter((id) => typeof id === 'string');
+      if (unique.length === 0) return [];
+      const list = sql.join(
+        unique.map((id) => sql`${id}`),
+        sql`, `,
+      );
+      const rows = (await db.all(sql`SELECT * FROM ${tableId} WHERE "id" IN (${list})`)) as Row[];
+      return rows.map(toRecord);
     },
 
     async create(values) {

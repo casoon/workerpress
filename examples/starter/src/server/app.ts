@@ -1,6 +1,7 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import {
   type AuthUser,
+  buildRegistry,
   collectSubscribers,
   contentRoutes,
   internalRoutes,
@@ -31,33 +32,39 @@ type Bindings = Env;
 type Variables = { platform: Platform; user?: AuthUser };
 type AppEnv = { Bindings: Bindings; Variables: Variables };
 
-// Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
-// generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).
-const content = new Hono<AppEnv>()
-  .get('/health', (c) => c.json({ ok: true, surface: 'content' }))
-  .route('/blog', contentRoutes(blog))
-  .route('/pages', contentRoutes(pages));
-
-const internal = new Hono<AppEnv>()
-  .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
-  .route('/notes', notesRoutes)
-  .route('/smoke', smokeRoutes)
-  .route('/media', mediaRoutes)
-  .route('/content/blog', internalRoutes(blog))
-  .route('/content/pages', internalRoutes(pages));
-
 // Plugin-Registry (M2-1): in Abhängigkeitsreihenfolge aufgelöst und automatisch
 // gemountet. Plugin-Collections erhalten dieselben Content-/Internal-Routen wie
 // First-Party-Collections; eigene Plugin-Routen landen unter /internal/plugins.
 const resolved = resolvePlugins(plugins);
 // Event-Subscriber (M2-3) aus den Plugin-`on`-Maps, einmalig gesammelt.
 const eventSubscribers = collectSubscribers(resolved.plugins);
+// Collection-Registry (M2-4): alle Collections, damit `?include=` Relationen
+// über First-Party- und Plugin-Grenzen hinweg auflösen kann.
+const allCollections = [blog, pages, ...resolved.collections];
+const registry = buildRegistry(allCollections);
+const routeOpts = { registry };
+
+// Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
+// generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).
+const content = new Hono<AppEnv>()
+  .get('/health', (c) => c.json({ ok: true, surface: 'content' }))
+  .route('/blog', contentRoutes(blog, routeOpts))
+  .route('/pages', contentRoutes(pages, routeOpts));
+
+const internal = new Hono<AppEnv>()
+  .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
+  .route('/notes', notesRoutes)
+  .route('/smoke', smokeRoutes)
+  .route('/media', mediaRoutes)
+  .route('/content/blog', internalRoutes(blog, routeOpts))
+  .route('/content/pages', internalRoutes(pages, routeOpts));
+
 const pluginRoutes = new Hono<AppEnv>();
 for (const plugin of resolved.plugins) plugin.routes?.(pluginRoutes);
 internal.route('/plugins', pluginRoutes);
 for (const collection of resolved.collections) {
-  content.route(`/${collection.name}`, contentRoutes(collection));
-  internal.route(`/content/${collection.name}`, internalRoutes(collection));
+  content.route(`/${collection.name}`, contentRoutes(collection, routeOpts));
+  internal.route(`/content/${collection.name}`, internalRoutes(collection, routeOpts));
 }
 
 // FTS5-Felder pro Collection (First-Party + Plugins) für den Such-Adapter.
@@ -107,7 +114,7 @@ export const app = new Hono<AppEnv>()
   })
   .get('/api/docs', (c) =>
     c.json(
-      openApiDocument([blog, pages, ...resolved.collections], {
+      openApiDocument(allCollections, {
         title: 'WorkerPress Starter API',
         version: '0.0.0',
       }),
