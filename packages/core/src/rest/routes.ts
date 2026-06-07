@@ -11,6 +11,7 @@
 import { type Context, Hono } from 'hono';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
+import { getVersion, listVersions, recordAudit, recordVersion } from '../db/history.js';
 import { parseFindQuery } from '../db/query.js';
 import { type CollectionRegistry, parseInclude, resolveIncludes } from '../db/relations.js';
 import { collectionRepository } from '../db/repository.js';
@@ -24,6 +25,13 @@ type Env = { Variables: { platform: Platform; user?: AuthUser } };
 export interface RouteOptions {
   /** Alle Collections, damit `?include=` Relationen auflösen kann (M2-4). */
   registry?: CollectionRegistry;
+  /** Content-Versionierung + Audit-Log (M2-6). Setzt die festen Plattform-Tabellen voraus. */
+  history?: {
+    /** Bei jedem create/update einen Versions-Snapshot anlegen + /versions-Routen. */
+    versions?: boolean;
+    /** create/update/delete und abgelehnte Zugriffe (403) ins audit_log schreiben. */
+    audit?: boolean;
+  };
 }
 
 function toSearchableDoc(record: Record<string, unknown>, fields: string[]): SearchableDoc {
@@ -45,6 +53,50 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
   const fields = searchableFields(collection);
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
   const registry = routeOpts.registry;
+  const history = routeOpts.history;
+
+  // Content-Versionierung + Audit-Log (M2-6). Läuft nach erfolgreichem Commit,
+  // inline (damit /versions sofort konsistent ist). Bei deaktivierter History
+  // (keine Plattform-Tabellen) sind die Helfer No-ops.
+  async function snapshot(
+    c: Context<Env>,
+    record: Record<string, unknown>,
+    action: 'create' | 'update',
+  ): Promise<void> {
+    const db = c.var.platform.db;
+    const id = typeof record.id === 'string' ? record.id : undefined;
+    if (history?.versions && id) {
+      await recordVersion(db, {
+        collection: collection.name,
+        recordId: id,
+        data: record,
+        changedBy: c.var.user?.id ?? null,
+      });
+    }
+    if (history?.audit) {
+      await recordAudit(db, {
+        action,
+        collection: collection.name,
+        recordId: id ?? null,
+        user: c.var.user?.id ?? null,
+      });
+    }
+  }
+
+  async function auditDenied(
+    c: Context<Env>,
+    recordId: string | null,
+    policy: string,
+  ): Promise<void> {
+    if (!history?.audit) return;
+    await recordAudit(c.var.platform.db, {
+      action: 'access-denied',
+      collection: collection.name,
+      recordId,
+      user: c.var.user?.id ?? null,
+      policy,
+    });
+  }
 
   // Löst `?include=author,tags` auf den gegebenen Zeilen auf (M2-4), sofern eine
   // Registry vorhanden ist. Ohne Registry/Include bleiben die rohen IDs erhalten.
@@ -176,7 +228,10 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
       const parsed = schemas.insert.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
       const auth = await authorize(c, 'write');
-      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      if (!auth.allowed) {
+        await auditDenied(c, null, auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
       // beforeChange läuft nach Validierung/Policy, aber vor der Persistenz und
       // darf `doc` verändern (z. B. Slug ableiten) oder mit 422 abbrechen.
       const doc = parsed.data as Record<string, unknown>;
@@ -184,6 +239,7 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
       if (blocked) return blocked;
       const record = await repo(c).create(doc);
       await afterChange(c, record, 'create');
+      await snapshot(c, record, 'create');
       indexAfter(c, record);
       emitWrite(c, record, 'create');
       return c.json(record, 201);
@@ -194,13 +250,17 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
       const existing = await repo(c).get(c.req.param('id'));
       if (!existing) return c.json({ error: 'not found' }, 404);
       const auth = await authorize(c, 'write', existing);
-      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      if (!auth.allowed) {
+        await auditDenied(c, c.req.param('id'), auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
       const doc = parsed.data as Record<string, unknown>;
       const blocked = await beforeChange(c, doc, 'update');
       if (blocked) return blocked;
       const record = await repo(c).update(c.req.param('id'), doc);
       if (!record) return c.json({ error: 'not found' }, 404);
       await afterChange(c, record, 'update');
+      await snapshot(c, record, 'update');
       indexAfter(c, record);
       emitWrite(c, record, 'update');
       return c.json(record);
@@ -210,13 +270,40 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
       const existing = await repo(c).get(id);
       if (!existing) return c.json({ error: 'not found' }, 404);
       const auth = await authorize(c, 'write', existing);
-      if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      if (!auth.allowed) {
+        await auditDenied(c, id, auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
       const ok = await repo(c).remove(id);
       if (ok) {
+        if (history?.audit) {
+          await recordAudit(c.var.platform.db, {
+            action: 'delete',
+            collection: collection.name,
+            recordId: id,
+            user: c.var.user?.id ?? null,
+          });
+        }
         removeAfter(c, id);
         c.var.platform.events.emit('content.deleted', { collection: collection.name, id });
       }
       return ok ? c.body(null, 204) : c.json({ error: 'not found' }, 404);
+    })
+    .get('/:id/versions', async (c) => {
+      if (!history?.versions) return c.json({ error: 'versioning disabled' }, 404);
+      const auth = await authorize(c, 'read', (await repo(c).get(c.req.param('id'))) ?? undefined);
+      if (!auth.allowed) return c.json({ error: 'not found' }, 404);
+      return c.json(await listVersions(c.var.platform.db, collection.name, c.req.param('id')));
+    })
+    .get('/:id/versions/:v', async (c) => {
+      if (!history?.versions) return c.json({ error: 'versioning disabled' }, 404);
+      const snap = await getVersion(
+        c.var.platform.db,
+        collection.name,
+        c.req.param('id'),
+        Number(c.req.param('v')),
+      );
+      return snap ? c.json(snap) : c.json({ error: 'not found' }, 404);
     });
 }
 

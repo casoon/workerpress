@@ -42,7 +42,9 @@ const eventSubscribers = collectSubscribers(resolved.plugins);
 // über First-Party- und Plugin-Grenzen hinweg auflösen kann.
 const allCollections = [blog, pages, ...resolved.collections];
 const registry = buildRegistry(allCollections);
-const routeOpts = { registry };
+// M2-4: Relation-Auflösung via Registry. M2-6: Versionierung + Audit-Log über die
+// festen Plattform-Tabellen (migrations/0004_platform.sql).
+const routeOpts = { registry, history: { versions: true, audit: true } };
 
 // Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
 // generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).

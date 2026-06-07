@@ -28,6 +28,15 @@ export type {
 export { collectionSnapshot, diffCollections } from './db/diff.js';
 export type { Fts5AdapterOptions } from './db/fts5.js';
 export { createFts5SearchAdapter, searchableFields } from './db/fts5.js';
+export type { AuditAction, AuditEntry, VersionRecord } from './db/history.js';
+export {
+  getVersion,
+  listAudit,
+  listVersions,
+  platformTablesSql,
+  recordAudit,
+  recordVersion,
+} from './db/history.js';
 export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
 export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
 export type {
