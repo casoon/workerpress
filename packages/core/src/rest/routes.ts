@@ -73,6 +73,24 @@ export function internalRoutes(collection: CollectionConfig) {
     c.var.platform.defer(() => c.var.platform.search.remove(collection.name, id));
   }
 
+  // Event-Bus (M2-3): nach erfolgreicher Schreiboperation feuern. `emit` kehrt
+  // sofort zurück; die Zustellung läuft entkoppelt über `platform.events`.
+  function emitWrite(
+    c: Context<Env>,
+    record: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): void {
+    const id = typeof record.id === 'string' ? record.id : undefined;
+    if (!id) return;
+    const events = c.var.platform.events;
+    if (operation === 'create') {
+      events.emit('content.created', { collection: collection.name, id, doc: record });
+    }
+    if (record.status === 'published') {
+      events.emit('content.published', { collection: collection.name, id, doc: record });
+    }
+  }
+
   // Lifecycle-Hooks (M2-2). `beforeChange` darf `doc` mutieren und abbrechen:
   // wirft ein Hook, antworten wir mit 422 (Rückgabe = fertige Response). Fehler
   // aus `afterChange` werden bewusst nicht abgefangen — fehleranfällige
@@ -148,6 +166,7 @@ export function internalRoutes(collection: CollectionConfig) {
       const record = await repo(c).create(doc);
       await afterChange(c, record, 'create');
       indexAfter(c, record);
+      emitWrite(c, record, 'create');
       return c.json(record, 201);
     })
     .put('/:id', async (c) => {
@@ -164,6 +183,7 @@ export function internalRoutes(collection: CollectionConfig) {
       if (!record) return c.json({ error: 'not found' }, 404);
       await afterChange(c, record, 'update');
       indexAfter(c, record);
+      emitWrite(c, record, 'update');
       return c.json(record);
     })
     .delete('/:id', async (c) => {
@@ -173,7 +193,10 @@ export function internalRoutes(collection: CollectionConfig) {
       const auth = await authorize(c, 'write', existing);
       if (!auth.allowed) return c.json({ error: 'forbidden', policy: auth.policy }, 403);
       const ok = await repo(c).remove(id);
-      if (ok) removeAfter(c, id);
+      if (ok) {
+        removeAfter(c, id);
+        c.var.platform.events.emit('content.deleted', { collection: collection.name, id });
+      }
       return ok ? c.body(null, 204) : c.json({ error: 'not found' }, 404);
     });
 }

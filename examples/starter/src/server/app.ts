@@ -1,6 +1,7 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import {
   type AuthUser,
+  collectSubscribers,
   contentRoutes,
   internalRoutes,
   openApiDocument,
@@ -49,6 +50,8 @@ const internal = new Hono<AppEnv>()
 // gemountet. Plugin-Collections erhalten dieselben Content-/Internal-Routen wie
 // First-Party-Collections; eigene Plugin-Routen landen unter /internal/plugins.
 const resolved = resolvePlugins(plugins);
+// Event-Subscriber (M2-3) aus den Plugin-`on`-Maps, einmalig gesammelt.
+const eventSubscribers = collectSubscribers(resolved.plugins);
 const pluginRoutes = new Hono<AppEnv>();
 for (const plugin of resolved.plugins) plugin.routes?.(pluginRoutes);
 internal.route('/plugins', pluginRoutes);
@@ -75,6 +78,7 @@ export const app = new Hono<AppEnv>()
         mediaBaseUrl: '/media',
         searchableFieldsByCollection,
         accessTeamDomain: ACCESS_TEAM_DOMAIN,
+        eventSubscribers,
       }),
     );
     const user = await resolveUser(c.req.raw);

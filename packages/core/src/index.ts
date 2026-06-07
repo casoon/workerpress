@@ -38,6 +38,13 @@ export type {
   SqliteType,
 } from './db/table.js';
 export { deriveTable } from './db/table.js';
+export type { EventBusOptions, QueueTransport, SubscriberMap } from './events/bus.js';
+export {
+  collectSubscribers,
+  createEventBus,
+  deliverQueuedEvent,
+  describeSubscribers,
+} from './events/bus.js';
 export type { CmsEventName, CmsEventPayloads, EventHandler } from './events/index.js';
 export { emit } from './events/index.js';
 export type {

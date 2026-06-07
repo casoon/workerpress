@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   describePlugins,
+  describeSubscribers,
   type InspectTarget,
   inspect,
   type MigrationSnapshot,
@@ -65,7 +66,7 @@ switch (command) {
     runInspect(rest);
     break;
   case 'plugins':
-    process.stdout.write(`${describePlugins(plugins)}\n`);
+    process.stdout.write(`${describePlugins(plugins)}\n\n${describeSubscribers(plugins)}\n`);
     break;
   case undefined:
   case 'help':

@@ -32,4 +32,10 @@ export default definePlugin({
   collections: [comments],
   routes: (app) => app.route('/comments', commentsApi),
   admin: { nav: [{ label: 'Kommentare', path: '/admin/comments' }] },
+  // Event-Bus-Smoke (M2-3): läuft async nach der Response, blockt sie nie.
+  on: {
+    'content.published': async ({ collection, id }) => {
+      console.log(`[comments] reacting to content.published: ${collection}/${id}`);
+    },
+  },
 });

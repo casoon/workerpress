@@ -2,13 +2,16 @@
 
 import {
   type AuthVerifier,
+  createEventBus,
   createFts5SearchAdapter,
   type EventBus,
   type KeyValue,
   noopAuth,
   type ObjectStorage,
   type Platform,
+  type QueueTransport,
   type SearchAdapter,
+  type SubscriberMap,
 } from '@workerpress/core';
 import { drizzle } from 'drizzle-orm/d1';
 import { createCloudflareAccessAuth } from './access.js';
@@ -33,6 +36,10 @@ export interface CloudflarePlatformOptions {
   accessAudience?: string | string[];
   /** Optional: eigener Auth-Verifier (z. B. für Tests). Überschreibt access*. */
   auth?: AuthVerifier;
+  /** Event-Subscriber (aus `collectSubscribers(plugins)`). Gesetzt → realer Event-Bus (M2-3). */
+  eventSubscribers?: SubscriberMap;
+  /** Optionaler Cloudflare-Queues-Transport für Event-Retry (M2-3). */
+  eventQueue?: QueueTransport;
 }
 
 function r2Storage(bucket: R2Bucket, baseUrl: string): ObjectStorage {
@@ -102,7 +109,7 @@ export function createCloudflarePlatform(
           audience: options.accessAudience,
         })
       : noopAuth);
-  return {
+  const platform: Platform = {
     db,
     storage: r2Storage(env.MEDIA, options.mediaBaseUrl ?? '/media'),
     kv: kvStore(env.CACHE),
@@ -110,7 +117,17 @@ export function createCloudflarePlatform(
       executionCtx.waitUntil(work());
     },
     search,
+    // Realer Event-Bus, sobald Subscriber registriert sind (M2-3); sonst No-op.
     events: noopEvents,
     auth,
   };
+  if (options.eventSubscribers && options.eventSubscribers.size > 0) {
+    platform.events = createEventBus({
+      subscribers: options.eventSubscribers,
+      platform: () => platform,
+      defer: platform.defer,
+      queue: options.eventQueue,
+    });
+  }
+  return platform;
 }

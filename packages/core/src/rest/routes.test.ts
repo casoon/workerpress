@@ -73,7 +73,13 @@ describe('collectionRepository', () => {
 
 describe('content vs internal routes', () => {
   function app(db: ReturnType<typeof drizzle>) {
-    const platform = { db } as unknown as Platform;
+    const platform = {
+      db,
+      events: { emit() {} },
+      defer: (work: () => Promise<void>) => {
+        void work();
+      },
+    } as unknown as Platform;
     return new Hono<{ Variables: { platform: Platform } }>()
       .use('*', async (c, next) => {
         c.set('platform', platform);
@@ -129,7 +135,13 @@ describe('content vs internal routes', () => {
     );
 
     function build(user?: { role: string }) {
-      const platform = { db } as unknown as Platform;
+      const platform = {
+        db,
+        events: { emit() {} },
+        defer: (work: () => Promise<void>) => {
+          void work();
+        },
+      } as unknown as Platform;
       return new Hono<{ Variables: { platform: Platform; user?: typeof user } }>()
         .use('*', async (c, next) => {
           c.set('platform', platform);
@@ -187,7 +199,13 @@ describe('lifecycle hooks (M2-2)', () => {
     collection: ReturnType<typeof defineCollection>,
     user?: AuthUser,
   ) {
-    const platform = { db } as unknown as Platform;
+    const platform = {
+      db,
+      events: { emit() {} },
+      defer: (work: () => Promise<void>) => {
+        void work();
+      },
+    } as unknown as Platform;
     return new Hono<{ Variables: { platform: Platform; user?: AuthUser } }>()
       .use('*', async (c, next) => {
         c.set('platform', platform);
