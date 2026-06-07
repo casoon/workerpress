@@ -131,13 +131,24 @@ export type {
 } from './platform/index.js';
 export { noopAuth } from './platform/index.js';
 export type {
+  AdminBulkAction,
   AdminExtensions,
+  AdminFieldRenderer,
   AdminNavItem,
-  AdminTableConfig,
+  AdminWidget,
   PluginConfig,
+  ResolvedAdminExtensions,
   ResolvedPlugins,
+  SavedView,
 } from './plugins/index.js';
-export { definePlugin, describePlugins, resolvePlugins } from './plugins/index.js';
+export {
+  adminExtensionsForCollection,
+  definePlugin,
+  describeAdminExtensions,
+  describePlugins,
+  resolveAdminExtensions,
+  resolvePlugins,
+} from './plugins/index.js';
 export type { AccessRules, Policy, PolicyContext, PolicyFn } from './policies/index.js';
 export { allOf, anyOf, definePolicy } from './policies/index.js';
 export type { OpenApiInfo } from './rest/openapi.js';

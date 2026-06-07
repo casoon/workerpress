@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { defineCollection } from '../collections/index.js';
 import { field } from '../fields/index.js';
-import { definePlugin, describePlugins, resolvePlugins } from './index.js';
+import {
+  adminExtensionsForCollection,
+  definePlugin,
+  describeAdminExtensions,
+  describePlugins,
+  resolveAdminExtensions,
+  resolvePlugins,
+} from './index.js';
 
 const comments = definePlugin({
   name: 'comments',
@@ -67,5 +74,52 @@ describe('describePlugins', () => {
 
   it('reports an empty registry', () => {
     expect(describePlugins([])).toContain('## Plugins (0)');
+  });
+});
+
+describe('admin extensions (M3-4)', () => {
+  const ext = definePlugin({
+    name: 'ext',
+    version: '1',
+    admin: {
+      widgets: [{ id: 'recent-comments', title: 'Recent comments' }],
+      fieldRenderers: [{ fieldType: 'richText', island: 'TipTap.svelte' }],
+      bulkActions: [
+        { id: 'approve', label: 'Approve', collection: 'comments', set: { status: 'approved' } },
+        { id: 'publish', label: 'Publish', set: { status: 'published' } },
+      ],
+      views: [{ name: 'Pending', where: { status: 'pending' }, collection: 'comments' }],
+    },
+  });
+
+  it('merges widgets, renderers, bulk actions and views across plugins', () => {
+    const resolved = resolveAdminExtensions([ext]);
+    expect(resolved.widgets.map((w) => w.id)).toEqual(['recent-comments']);
+    expect(resolved.fieldRenderers[0]?.fieldType).toBe('richText');
+    expect(resolved.bulkActions).toHaveLength(2);
+    expect(resolved.views[0]?.name).toBe('Pending');
+  });
+
+  it('filters bulk actions and views per collection (incl. global)', () => {
+    const resolved = resolveAdminExtensions([ext]);
+    const forComments = adminExtensionsForCollection(resolved, 'comments');
+    // global `publish` + collection-specific `approve`
+    expect(forComments.bulkActions.map((a) => a.id).sort()).toEqual(['approve', 'publish']);
+    expect(forComments.views.map((v) => v.name)).toEqual(['Pending']);
+
+    const forBlog = adminExtensionsForCollection(resolved, 'blog');
+    expect(forBlog.bulkActions.map((a) => a.id)).toEqual(['publish']); // only global
+    expect(forBlog.views).toHaveLength(0);
+  });
+
+  it('is exposed via resolvePlugins().adminExtensions', () => {
+    expect(resolvePlugins([ext]).adminExtensions.widgets).toHaveLength(1);
+  });
+
+  it('describes admin extensions for the CLI', () => {
+    const out = describeAdminExtensions([ext]);
+    expect(out).toContain('widgets: recent-comments');
+    expect(out).toContain('fieldRenderers: richText');
+    expect(out).toContain('bulkActions: approve, publish');
   });
 });

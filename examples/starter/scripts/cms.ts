@@ -15,6 +15,7 @@ import {
   collectionSchemas,
   collectionSnapshot,
   deriveTable,
+  describeAdminExtensions,
   describeCollectionsData,
   describePlugins,
   describeRoutesData,
@@ -220,7 +221,7 @@ switch (command) {
     out(
       json
         ? JSON.stringify(resolved.plugins, null, 2)
-        : `${describePlugins(plugins)}\n\n${describeSubscribers(plugins)}`,
+        : `${describePlugins(plugins)}\n\n${describeSubscribers(plugins)}\n\n${describeAdminExtensions(plugins)}`,
     );
     break;
   case 'sites':

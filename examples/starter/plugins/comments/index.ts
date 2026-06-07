@@ -31,7 +31,16 @@ export default definePlugin({
   version: '0.1.0',
   collections: [comments],
   routes: (app) => app.route('/comments', commentsApi),
-  admin: { nav: [{ label: 'Kommentare', path: '/admin/comments' }] },
+  // Admin-Erweiterungspunkte (M3-4): Dashboard-Widget, Default-View und eine
+  // Bulk-Action, die selektierte Kommentare auf `approved` setzt.
+  admin: {
+    nav: [{ label: 'Kommentare', path: '/admin/comments' }],
+    widgets: [{ id: 'comments-recent', title: 'Neueste Kommentare', island: 'CommentsWidget' }],
+    bulkActions: [
+      { id: 'approve', label: 'Freigeben', collection: 'comments', set: { status: 'approved' } },
+    ],
+    views: [{ name: 'Ausstehend', where: { status: 'pending' }, collection: 'comments' }],
+  },
   // Event-Bus-Smoke (M2-3): läuft async nach der Response, blockt sie nie.
   on: {
     'content.published': async ({ collection, id }) => {
