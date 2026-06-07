@@ -6,6 +6,7 @@
  */
 
 import type { CollectionInfo, RouteInfo } from './describe.js';
+import type { CheckStatus, DoctorReport } from './doctor.js';
 
 const enabled = (): boolean => !process.env.NO_COLOR && Boolean(process.stdout?.isTTY);
 
@@ -60,6 +61,25 @@ export function formatCollections(infos: CollectionInfo[]): string {
       `      searchable: ${c.searchable.length ? c.searchable.join(', ') : color('dim', 'none')}`,
     );
   }
+  return lines.join('\n');
+}
+
+const STATUS_ICON: Record<CheckStatus, string> = {
+  ok: color('green', '✓'),
+  warn: color('yellow', '!'),
+  error: color('red', '✗'),
+  skipped: color('gray', '–'),
+};
+
+/** Doctor-Report als Text (ein Symbol je Check + Gesamturteil). */
+export function formatDoctor(report: DoctorReport): string {
+  const lines = [color('bold', 'cms doctor')];
+  for (const check of report.checks) {
+    lines.push(
+      `  ${STATUS_ICON[check.status]} ${check.name.padEnd(16)} ${color('dim', check.detail)}`,
+    );
+  }
+  lines.push('', report.ok ? color('green', 'PASS') : color('red', 'FAIL'));
   return lines.join('\n');
 }
 

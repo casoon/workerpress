@@ -34,7 +34,15 @@ export {
   describeRoutesData,
   scaffoldCollection,
 } from './cli/describe.js';
-export { color, formatCollections, formatRoutes, renderOutput } from './cli/format.js';
+export type { CheckStatus, DoctorCheck, DoctorInput, DoctorReport } from './cli/doctor.js';
+export { runDoctor } from './cli/doctor.js';
+export {
+  color,
+  formatCollections,
+  formatDoctor,
+  formatRoutes,
+  renderOutput,
+} from './cli/format.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
 export type { CollectionClient, FindArgs, QueryClientOptions } from './client.js';

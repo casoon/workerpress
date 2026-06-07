@@ -22,6 +22,7 @@ import {
   describeSubscribers,
   diffCollections,
   formatCollections,
+  formatDoctor,
   formatRoutes,
   generateMigration,
   type InspectTarget,
@@ -29,6 +30,7 @@ import {
   type MigrationSnapshot,
   renderOutput,
   resolvePlugins,
+  runDoctor,
   type SchemaSnapshot,
   scaffoldCollection,
   searchableFields,
@@ -102,6 +104,19 @@ function runInspect(): void {
     return;
   }
   out(inspect(collections, { collection, target, previousSnapshot, previousSchemaSnapshot }));
+
+  // Dry-Run-Gate (M3-2): `cms inspect --migrations --gate` bricht bei Breaking-
+  // Changes mit Exit-Code 1 ab — als CI-Schranke vor dem Deploy.
+  if (rest.includes('--gate') && previousSchemaSnapshot) {
+    const breaking = diffCollections(
+      previousSchemaSnapshot,
+      collectionSnapshot(collections),
+    ).filter((c) => c.kind === 'breaking');
+    if (breaking.length) {
+      process.stderr.write(`\n[cms] ${breaking.length} breaking change(s) — failing gate.\n`);
+      process.exit(1);
+    }
+  }
 }
 
 function runRoutes(): void {
@@ -143,6 +158,19 @@ function runMigrations(): void {
   }
 }
 
+function runDoctorCmd(): void {
+  // ACCESS_TEAM_DOMAIN ist im Starter das Pflicht-Secret für Cloudflare Access.
+  const report = runDoctor({
+    collections,
+    previousSchemaSnapshot,
+    previousMigrationSnapshot: previousSnapshot,
+    env: process.env,
+    requiredSecrets: ['ACCESS_TEAM_DOMAIN'],
+  });
+  out(renderOutput(json, report, formatDoctor(report)));
+  if (!report.ok) process.exit(1);
+}
+
 function runGenerate(): void {
   const [kind, name] = positional;
   if (kind !== 'collection' || !name) {
@@ -161,10 +189,11 @@ function runGenerate(): void {
 function printHelp(): void {
   out(
     'WorkerPress Starter CMS\n\nUsage: pnpm cms <command> [--json]\n\nCommands:\n' +
-      '  inspect [collection] [--routes|--schema|--migrations|--hooks|--policies|--forms|--search]\n' +
+      '  inspect [collection] [--routes|--schema|--migrations|--hooks|--policies|--forms|--search] [--gate]\n' +
       '  routes\n' +
       '  collections\n' +
       '  migrations\n' +
+      '  doctor            (exit 1 on errors — CI gate)\n' +
       '  plugins\n' +
       '  sites\n' +
       '  generate collection <name>\n',
@@ -183,6 +212,9 @@ switch (command) {
     break;
   case 'migrations':
     runMigrations();
+    break;
+  case 'doctor':
+    runDoctorCmd();
     break;
   case 'plugins':
     out(
