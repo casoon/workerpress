@@ -46,8 +46,12 @@ const eventSubscribers = collectSubscribers(resolved.plugins);
 const allCollections = [blog, pages, ...resolved.collections];
 const registry = buildRegistry(allCollections);
 // M2-4: Relation-Auflösung via Registry. M2-6: Versionierung + Audit-Log über die
-// festen Plattform-Tabellen (migrations/0004_platform.sql).
-const routeOpts = { registry, history: { versions: true, audit: true } };
+// festen Plattform-Tabellen. M2-8: Cache-Revalidation (Read-Through KV + Edge).
+const routeOpts = {
+  registry,
+  history: { versions: true, audit: true },
+  cache: { ttl: 300 },
+};
 
 // Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
 // generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).

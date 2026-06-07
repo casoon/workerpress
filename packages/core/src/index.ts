@@ -15,6 +15,14 @@ export {
   tokenToUser,
   verifyApiToken,
 } from './auth/tokens.js';
+export {
+  readThroughContent,
+  resolveRevalidateTargets,
+  revalidateOnWrite,
+  revalidatePaths,
+  revalidateTag,
+  siteCacheKey,
+} from './cache/revalidate.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
 export type { CollectionClient, FindArgs, QueryClientOptions } from './client.js';
@@ -90,6 +98,7 @@ export { runHooks, sortHooks } from './hooks/index.js';
 export type {
   AuthUser,
   AuthVerifier,
+  CachePurge,
   DrizzleDatabase,
   EventBus,
   KeyValue,

@@ -2,6 +2,7 @@
 
 import {
   type AuthVerifier,
+  type CachePurge,
   createEventBus,
   createFts5SearchAdapter,
   type EventBus,
@@ -86,6 +87,13 @@ const noopEvents: EventBus = {
   emit: () => undefined,
 };
 
+/** Edge-Cache-Invalidierung über die Cloudflare Cache API (`caches.default`). */
+const cloudflareCache: CachePurge = {
+  async delete(url) {
+    await caches.default.delete(url);
+  },
+};
+
 /**
  * Baut die Cloudflare-Platform aus `env` (Bindings) und `executionCtx`.
  * Einzige Stelle, an der Cloudflare-Idiome (D1/R2/KV/waitUntil) berührt werden.
@@ -119,6 +127,7 @@ export function createCloudflarePlatform(
     search,
     // Realer Event-Bus, sobald Subscriber registriert sind (M2-3); sonst No-op.
     events: noopEvents,
+    cache: cloudflareCache,
     auth,
   };
   if (options.eventSubscribers && options.eventSubscribers.size > 0) {
