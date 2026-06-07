@@ -1,0 +1,21 @@
+---
+const user = Astro.locals.user;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin · __PROJECT_NAME__</title>
+  </head>
+  <body>
+    <main>
+      <h1>Admin</h1>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+      <ul>
+        <li><a href="/admin/blog">Beiträge</a></li>
+      </ul>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+---
+const res = await fetch(`${Astro.url.origin}/api/content/blog`);
+const posts = res.ok ? await res.json() : [];
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__PROJECT_NAME__</title>
+  </head>
+  <body>
+    <main>
+      <h1>__PROJECT_NAME__</h1>
+      <p>Powered by WorkerPress. <a href="/admin">→ Admin</a></p>
+      <h2>Blog</h2>
+      <ul>
+        {posts.map((p: { id: string; title: string }) => <li>{p.title}</li>)}
+      </ul>
+    </main>
+  </body>
+</html>
