@@ -1,6 +1,7 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import {
   type AuthUser,
+  apiTokenAuth,
   buildRegistry,
   collectSubscribers,
   contentRoutes,
@@ -9,6 +10,8 @@ import {
   type Platform,
   resolvePlugins,
   searchableFields,
+  tokenRoutes,
+  tokenScopeGuard,
 } from '@workerpress/core';
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
@@ -29,7 +32,7 @@ import { smokeRoutes } from './routes/internal/smoke.js';
  */
 
 type Bindings = Env;
-type Variables = { platform: Platform; user?: AuthUser };
+type Variables = { platform: Platform; user?: AuthUser; scopes?: string[] };
 type AppEnv = { Bindings: Bindings; Variables: Variables };
 
 // Plugin-Registry (M2-1): in Abhängigkeitsreihenfolge aufgelöst und automatisch
@@ -53,8 +56,14 @@ const content = new Hono<AppEnv>()
   .route('/blog', contentRoutes(blog, routeOpts))
   .route('/pages', contentRoutes(pages, routeOpts));
 
+// Internal-API: optionaler Bearer-Token-Pfad (M2-7). Liegt ein gültiges Token an,
+// wird `user`+`scopes` daraus abgeleitet und der Scope-Guard greift; ohne Token
+// gilt der Session-Pfad (Access) + die Collection-Policies.
 const internal = new Hono<AppEnv>()
+  .use('*', apiTokenAuth())
+  .use('*', tokenScopeGuard())
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
+  .route('/tokens', tokenRoutes())
   .route('/notes', notesRoutes)
   .route('/smoke', smokeRoutes)
   .route('/media', mediaRoutes)

@@ -19,3 +19,13 @@ CREATE TABLE IF NOT EXISTS "audit_log" (
   "meta" text
 );
 CREATE INDEX IF NOT EXISTS "audit_log_collection_idx" ON "audit_log" ("collection", "record_id");
+CREATE TABLE IF NOT EXISTS "api_tokens" (
+  "id" text PRIMARY KEY NOT NULL,
+  "name" text NOT NULL,
+  "token_hash" text NOT NULL,
+  "scopes" text NOT NULL,
+  "created_by" text,
+  "expires_at" integer,
+  "last_used_at" integer
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "api_tokens_hash_idx" ON "api_tokens" ("token_hash");

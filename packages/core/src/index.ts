@@ -4,6 +4,17 @@
 
 export type { AdminCollectionSchema, AdminField, AdminFieldOptions } from './admin/schema.js';
 export { adminSchema } from './admin/schema.js';
+export type { IssuedToken, Scope, TokenPrincipal } from './auth/tokens.js';
+export {
+  apiTokensTableSql,
+  createApiToken,
+  hashToken,
+  hasScope,
+  listApiTokens,
+  revokeApiToken,
+  tokenToUser,
+  verifyApiToken,
+} from './auth/tokens.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
 export type { CollectionClient, FindArgs, QueryClientOptions } from './client.js';
@@ -104,6 +115,8 @@ export type { OpenApiInfo } from './rest/openapi.js';
 export { openApiDocument } from './rest/openapi.js';
 export type { RouteOptions } from './rest/routes.js';
 export { contentRoutes, internalRoutes } from './rest/routes.js';
+export type { TokenRoutesOptions } from './rest/tokens.js';
+export { apiTokenAuth, tokenRoutes, tokenScopeGuard } from './rest/tokens.js';
 export type { InferInsert, InferSelect, WithInclude } from './schema/types.js';
 export type { CollectionSchemas } from './schema/zod.js';
 export { collectionSchemas } from './schema/zod.js';
