@@ -11,8 +11,9 @@
 import { type Context, Hono } from 'hono';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
+import { parseFindQuery } from '../db/query.js';
 import { type CollectionRegistry, parseInclude, resolveIncludes } from '../db/relations.js';
-import { collectionRepository, type ListOptions } from '../db/repository.js';
+import { collectionRepository } from '../db/repository.js';
 import { runHooks } from '../hooks/index.js';
 import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
@@ -23,17 +24,6 @@ type Env = { Variables: { platform: Platform; user?: AuthUser } };
 export interface RouteOptions {
   /** Alle Collections, damit `?include=` Relationen auflösen kann (M2-4). */
   registry?: CollectionRegistry;
-}
-
-function parseListQuery(c: Context<Env>): ListOptions {
-  const { limit, offset, orderBy, order, ...where } = c.req.query();
-  return {
-    limit: limit ? Number(limit) : undefined,
-    offset: offset ? Number(offset) : undefined,
-    orderBy,
-    order: order === 'desc' ? 'desc' : 'asc',
-    where: Object.keys(where).length > 0 ? where : undefined,
-  };
 }
 
 function toSearchableDoc(record: Record<string, unknown>, fields: string[]): SearchableDoc {
@@ -160,7 +150,7 @@ export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOpt
 
   return new Hono<Env>()
     .get('/', async (c) => {
-      const rows = await repo(c).list(parseListQuery(c));
+      const rows = await repo(c).find(parseFindQuery(collection, c.req.query()));
       const readPolicy = collection.access?.read;
       // Policy filtert vor der Relation-Auflösung (kein Leak über `include`).
       const visible = readPolicy ? await filterByReadPolicy(c, rows, readPolicy) : rows;
@@ -243,7 +233,10 @@ export function contentRoutes(collection: CollectionConfig, routeOpts: RouteOpti
   }
   return new Hono<Env>()
     .get('/', async (c) => {
-      const rows = await repo(c).list({ ...parseListQuery(c), publishedOnly: true });
+      const rows = await repo(c).find({
+        ...parseFindQuery(collection, c.req.query()),
+        publishedOnly: true,
+      });
       return c.json(await withIncludes(c, rows));
     })
     .get('/:id', async (c) => {

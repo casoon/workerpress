@@ -6,6 +6,8 @@ export type { AdminCollectionSchema, AdminField, AdminFieldOptions } from './adm
 export { adminSchema } from './admin/schema.js';
 export type { InspectOptions, InspectTarget } from './cli/inspect.js';
 export { inspect } from './cli/inspect.js';
+export type { CollectionClient, FindArgs, QueryClientOptions } from './client.js';
+export { createQueryClient, findToQuery } from './client.js';
 export type {
   CollectionConfig,
   CollectionHooks,
@@ -28,6 +30,13 @@ export type { Fts5AdapterOptions } from './db/fts5.js';
 export { createFts5SearchAdapter, searchableFields } from './db/fts5.js';
 export type { GeneratedMigration, MigrationSnapshot, TableSql } from './db/migrate.js';
 export { generateMigration, migrationSnapshot, tableToSql } from './db/migrate.js';
+export type {
+  FindOptions,
+  FindWhere,
+  WhereOperators,
+  WhereValue,
+} from './db/query.js';
+export { buildConditions, normalizeOrderBy, parseFindQuery } from './db/query.js';
 export type { CollectionRegistry } from './db/relations.js';
 export { buildRegistry, parseInclude, resolveIncludes } from './db/relations.js';
 export type { CollectionRepository, ListOptions } from './db/repository.js';
