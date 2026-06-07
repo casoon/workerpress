@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   describePlugins,
+  describeSites,
   describeSubscribers,
   type InspectTarget,
   inspect,
@@ -21,6 +22,7 @@ import {
 import blog from '../collections/blog.js';
 import pages from '../collections/pages.js';
 import { plugins } from '../plugins/index.js';
+import { sites } from '../sites.js';
 
 // First-Party + automatisch aufgelöste Plugin-Collections (M2-1), damit z. B.
 // `cms inspect comments` und die Tabellenliste die Plugin-Collection enthalten.
@@ -57,7 +59,8 @@ function printHelp(): void {
   process.stdout.write(
     'WorkerPress Starter CMS\n\nUsage: pnpm cms <command>\n\nCommands:\n' +
       '  inspect [collection] [--routes|--schema|--migrations|--hooks]\n' +
-      '  plugins\n',
+      '  plugins\n' +
+      '  sites\n',
   );
 }
 
@@ -67,6 +70,9 @@ switch (command) {
     break;
   case 'plugins':
     process.stdout.write(`${describePlugins(plugins)}\n\n${describeSubscribers(plugins)}\n`);
+    break;
+  case 'sites':
+    process.stdout.write(`${describeSites(sites)}\n`);
     break;
   case undefined:
   case 'help':

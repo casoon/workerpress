@@ -129,3 +129,12 @@ export { apiTokenAuth, tokenRoutes, tokenScopeGuard } from './rest/tokens.js';
 export type { InferInsert, InferSelect, WithInclude } from './schema/types.js';
 export type { CollectionSchemas } from './schema/zod.js';
 export { collectionSchemas } from './schema/zod.js';
+export type { SiteConfig, SiteRole } from './sites/index.js';
+export {
+  defineSite,
+  describeSites,
+  listSites,
+  resolveSite,
+  seedSites,
+  sitesTableSql,
+} from './sites/index.js';

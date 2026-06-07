@@ -19,6 +19,7 @@ import { collectionRepository } from '../db/repository.js';
 import { runHooks } from '../hooks/index.js';
 import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
+import { resolveSite, type SiteConfig } from '../sites/index.js';
 
 type Env = { Variables: { platform: Platform; user?: AuthUser } };
 
@@ -38,6 +39,11 @@ export interface RouteOptions {
     /** TTL der KV-Cache-Einträge in Sekunden (Default: kein Ablauf). */
     ttl?: number;
   };
+  /**
+   * Multi-Site-Register (M2-9). Gesetzt → die Content-API löst die aktive Site aus
+   * dem Host/`x-site` auf und filtert auf site-eigenen + globalen Content.
+   */
+  sites?: SiteConfig[];
 }
 
 /** Aktive Site/Host eines Requests für site-aware Cache-Keys (M2-8/M2-9). */
@@ -346,6 +352,16 @@ export function contentRoutes(collection: CollectionConfig, routeOpts: RouteOpti
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
   const registry = routeOpts.registry;
   const cacheOpts = routeOpts.cache;
+  const sites = routeOpts.sites;
+
+  // Aktive Site aus Host/`x-site` (M2-9). Ohne Register oder ohne site-Feld an der
+  // Collection bleibt der Filter inaktiv (undefined → kein WHERE site).
+  function activeSiteId(c: Context<Env>): string | null | undefined {
+    if (!sites || !('site' in collection.fields)) return undefined;
+    const host = requestHost(c);
+    const path = new URL(c.req.url).pathname;
+    return resolveSite(sites, host, path)?.id ?? null;
+  }
   async function withIncludes(
     c: Context<Env>,
     rows: Record<string, unknown>[],
@@ -367,11 +383,13 @@ export function contentRoutes(collection: CollectionConfig, routeOpts: RouteOpti
   }
   return new Hono<Env>()
     .get('/', async (c) => {
+      const site = activeSiteId(c);
       const suffix = `list?${new URL(c.req.url).searchParams.toString()}`;
       const data = await cached(c, suffix, async () => {
         const rows = await repo(c).find({
           ...parseFindQuery(collection, c.req.query()),
           publishedOnly: true,
+          site,
         });
         return withIncludes(c, rows);
       });

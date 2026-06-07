@@ -8,6 +8,7 @@
 import { sql } from 'drizzle-orm';
 import { apiTokensTableSql } from '../auth/tokens.js';
 import type { DrizzleDatabase } from '../platform/index.js';
+import { sitesTableSql } from '../sites/index.js';
 
 export type AuditAction = 'create' | 'update' | 'delete' | 'access-denied';
 
@@ -56,6 +57,8 @@ export function platformTablesSql(): string {
     'CREATE INDEX IF NOT EXISTS "audit_log_collection_idx" ON "audit_log" ("collection", "record_id");',
     // API-Tokens (M2-7) gehören ebenfalls zu den festen Plattform-Tabellen.
     apiTokensTableSql(),
+    // Multi-Site-Register (M2-9).
+    sitesTableSql(),
   ].join('\n');
 }
 

@@ -117,6 +117,12 @@ export function collectionRepository(
     async find(opts = {}) {
       const cond: SQL[] = [];
       if (opts.publishedOnly && hasStatus) cond.push(sql`"status" = 'published'`);
+      // Multi-Site-Filter (M2-9): nur anwenden, wenn die Collection ein site-Feld hat.
+      if (opts.site !== undefined && 'site' in collection.fields) {
+        cond.push(
+          opts.site === null ? sql`"site" IS NULL` : sql`("site" = ${opts.site} OR "site" IS NULL)`,
+        );
+      }
       if (opts.where) cond.push(...buildConditions(collection, columnFields, opts.where));
       const whereSql = cond.length ? sql` WHERE ${sql.join(cond, sql` AND `)}` : sql``;
       const ob = normalizeOrderBy(collection, columnFields, opts.orderBy);

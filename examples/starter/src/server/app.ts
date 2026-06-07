@@ -17,6 +17,7 @@ import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
 import { plugins } from '../../plugins/index.js';
+import { sites } from '../../sites.js';
 import { ACCESS_TEAM_DOMAIN, resolveUser } from './auth.js';
 import { mediaRoutes } from './routes/internal/media.js';
 import { notesRoutes } from './routes/internal/notes.js';
@@ -47,10 +48,12 @@ const allCollections = [blog, pages, ...resolved.collections];
 const registry = buildRegistry(allCollections);
 // M2-4: Relation-Auflösung via Registry. M2-6: Versionierung + Audit-Log über die
 // festen Plattform-Tabellen. M2-8: Cache-Revalidation (Read-Through KV + Edge).
+// M2-9: Multi-Site — Content-API filtert auf aktive Site + globalen Content.
 const routeOpts = {
   registry,
   history: { versions: true, audit: true },
   cache: { ttl: 300 },
+  sites,
 };
 
 // Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden

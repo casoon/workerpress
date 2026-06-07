@@ -32,6 +32,12 @@ export interface FindOptions {
   limit?: number;
   offset?: number;
   publishedOnly?: boolean;
+  /**
+   * Multi-Site-Filter (M2-9): `string` → `(site = id OR site IS NULL)`
+   * (site-eigener + globaler Content), `null` → nur globaler Content. `undefined`
+   * → kein Site-Filter. Wirkt nur, wenn die Collection ein `site`-Feld hat.
+   */
+  site?: string | null;
 }
 
 /** Erlaubte Operatoren je Field-Typ (Rest wird ignoriert → kein Leak/Fehler). */

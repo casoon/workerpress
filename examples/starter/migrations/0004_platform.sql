@@ -29,3 +29,11 @@ CREATE TABLE IF NOT EXISTS "api_tokens" (
   "last_used_at" integer
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "api_tokens_hash_idx" ON "api_tokens" ("token_hash");
+CREATE TABLE IF NOT EXISTS "sites" (
+  "id" text PRIMARY KEY NOT NULL,
+  "role" text NOT NULL,
+  "host" text NOT NULL,
+  "path_prefix" text,
+  "name" text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "sites_host_idx" ON "sites" ("host");
