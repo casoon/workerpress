@@ -1,6 +1,8 @@
 <script lang="ts">
 import type { AdminCollectionSchema } from '@workerpress/core';
 import FieldRenderer from './FieldRenderer.svelte';
+import { createQuery, createMutation, QueryClientProvider } from '@tanstack/svelte-query';
+import { queryClient } from '../queryClient.js';
 
 interface Props {
   schema: AdminCollectionSchema;
@@ -13,122 +15,149 @@ let { schema, recordId, listUrl }: Props = $props();
 
 type Row = Record<string, unknown>;
 
-let values = $state<Row>({});
-let errors = $state<Record<string, string>>({});
-let saving = $state(false);
-let globalError = $state<string | null>(null);
-let loaded = $state(false);
-
 const isEdit = Boolean(recordId);
+let errors = $state<Record<string, string>>({});
+let globalError = $state<string | null>(null);
 
-async function load() {
-  if (!recordId) { loaded = true; return; }
-  try {
+// Query to load data (only if isEdit is true)
+const query = createQuery(() => ({
+  queryKey: ['collection-record', schema.name, recordId],
+  queryFn: async () => {
     const res = await fetch(`${schema.apiBase}/${recordId}`);
     if (!res.ok) throw new Error(`Laden fehlgeschlagen (${res.status})`);
-    values = (await res.json()) as Row;
-  } catch (e) {
-    globalError = e instanceof Error ? e.message : 'Unbekannter Fehler';
-  } finally {
-    loaded = true;
+    return (await res.json()) as Row;
+  },
+  enabled: isEdit,
+}), queryClient);
+
+// Local values state initialized when data is loaded
+let values = $state<Row>({});
+$effect(() => {
+  if (query.data) {
+    values = { ...query.data };
   }
-}
+});
 
-async function submit(e: SubmitEvent) {
-  e.preventDefault();
-  saving = true;
-  errors = {};
-  globalError = null;
-
-  const url = isEdit ? `${schema.apiBase}/${recordId}` : schema.apiBase;
-  const method = isEdit ? 'PUT' : 'POST';
-
-  try {
+// Mutation to save data (POST or PUT)
+const saveMutation = createMutation(() => ({
+  mutationFn: async (data: Row) => {
+    const url = isEdit ? `${schema.apiBase}/${recordId}` : schema.apiBase;
+    const method = isEdit ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(values),
+      body: JSON.stringify(data),
     });
-    if (res.ok) {
-      if (listUrl) location.href = listUrl;
-    } else {
-      const body = (await res.json()) as { error?: unknown; policy?: string };
-      if (body.policy) {
-        globalError = `Zugriff verweigert (Policy: ${body.policy})`;
-      } else if (typeof body.error === 'object' && body.error !== null) {
-        const flat = body.error as { fieldErrors?: Record<string, string[]> };
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw body;
+    }
+    return res.headers.get('content-type')?.includes('application/json')
+      ? await res.json().catch(() => ({}))
+      : {};
+  },
+  onSuccess: () => {
+    // Invalidate the collection cache to force refetching in list view
+    void queryClient.invalidateQueries({ queryKey: ['collection', schema.name] });
+    if (listUrl) location.href = listUrl;
+  },
+  onError: (err: any) => {
+    if (err && typeof err === 'object') {
+      if (err.policy) {
+        globalError = `Zugriff verweigert (Policy: ${err.policy})`;
+      } else if (err.error && typeof err.error === 'object') {
+        const flat = err.error as { fieldErrors?: Record<string, string[]> };
         for (const [k, msgs] of Object.entries(flat.fieldErrors ?? {})) {
           errors[k] = Array.isArray(msgs) ? msgs[0] ?? '' : String(msgs);
         }
       } else {
-        globalError = String(body.error ?? 'Unbekannter Fehler');
+        globalError = String(err.error ?? 'Unbekannter Fehler');
       }
+    } else {
+      globalError = err instanceof Error ? err.message : 'Netzwerkfehler';
     }
-  } catch (err) {
-    globalError = err instanceof Error ? err.message : 'Netzwerkfehler';
-  } finally {
-    saving = false;
   }
+}), queryClient);
+
+// Mutation to delete data
+const deleteMutation = createMutation(() => ({
+  mutationFn: async () => {
+    const res = await fetch(`${schema.apiBase}/${recordId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Löschen fehlgeschlagen (${res.status})`);
+  },
+  onSuccess: () => {
+    void queryClient.invalidateQueries({ queryKey: ['collection', schema.name] });
+    if (listUrl) location.href = listUrl;
+  },
+  onError: (err: any) => {
+    globalError = err instanceof Error ? err.message : 'Netzwerkfehler';
+  }
+}), queryClient);
+
+async function submit(e: SubmitEvent) {
+  e.preventDefault();
+  errors = {};
+  globalError = null;
+  saveMutation.mutate(values);
 }
 
 async function deleteRecord() {
   if (!recordId) return;
   if (!confirm(`${schema.singular} wirklich löschen?`)) return;
-  try {
-    const res = await fetch(`${schema.apiBase}/${recordId}`, { method: 'DELETE' });
-    if (res.ok && listUrl) location.href = listUrl;
-    else globalError = `Löschen fehlgeschlagen (${res.status})`;
-  } catch (err) {
-    globalError = err instanceof Error ? err.message : 'Netzwerkfehler';
-  }
+  deleteMutation.mutate();
 }
 
-// Lade vorhandenen Datensatz beim Mounten
-$effect(() => { void load(); });
+const saving = $derived(saveMutation.isPending || deleteMutation.isPending);
+const loaded = $derived(!isEdit || query.isSuccess);
 </script>
 
-{#if !loaded}
-  <p>Lädt…</p>
-{:else}
-  {#if globalError}
-    <p role="alert" style="color: red">{globalError}</p>
-  {/if}
+<QueryClientProvider client={queryClient}>
+  {#if !loaded}
+    <p>Lädt…</p>
+  {:else}
+    {#if globalError}
+      <p role="alert" style="color: red">{globalError}</p>
+    {/if}
+    {#if query.error}
+      <p role="alert" style="color: red">{query.error.message}</p>
+    {/if}
 
-  <form onsubmit={submit}>
-    {#each schema.fields as f (f.name)}
-      {#if f.kind !== 'relation' && f.kind !== 'array' && f.kind !== 'group' && f.kind !== 'json'}
-        <div class="field">
-          <label for={f.name}>
-            {f.label}{f.required ? ' *' : ''}
-          </label>
-          <FieldRenderer
-            field={f}
-            value={values[f.name]}
-            onchange={(v) => { values = { ...values, [f.name]: v }; }}
-            disabled={saving}
-          />
-          {#if errors[f.name]}
-            <span class="error">{errors[f.name]}</span>
-          {/if}
-        </div>
-      {/if}
-    {/each}
+    <form onsubmit={submit}>
+      {#each schema.fields as f (f.name)}
+        {#if f.kind !== 'relation' && f.kind !== 'array' && f.kind !== 'group' && f.kind !== 'json'}
+          <div class="field">
+            <label for={f.name}>
+              {f.label}{f.required ? ' *' : ''}
+            </label>
+            <FieldRenderer
+              field={f}
+              value={values[f.name]}
+              onchange={(v) => { values = { ...values, [f.name]: v }; }}
+              disabled={saving}
+            />
+            {#if errors[f.name]}
+              <span class="error">{errors[f.name]}</span>
+            {/if}
+          </div>
+        {/if}
+      {/each}
 
-    <div class="actions">
-      <button type="submit" disabled={saving}>
-        {saving ? 'Speichert…' : isEdit ? 'Speichern' : `${schema.singular} anlegen`}
-      </button>
-      {#if listUrl}
-        <a href={listUrl}>Abbrechen</a>
-      {/if}
-      {#if isEdit}
-        <button type="button" onclick={deleteRecord} disabled={saving} style="margin-left: auto; color: red">
-          Löschen
+      <div class="actions">
+        <button type="submit" disabled={saving}>
+          {saving ? 'Speichert…' : isEdit ? 'Speichern' : `${schema.singular} anlegen`}
         </button>
-      {/if}
-    </div>
-  </form>
-{/if}
+        {#if listUrl}
+          <a href={listUrl}>Abbrechen</a>
+        {/if}
+        {#if isEdit}
+          <button type="button" onclick={deleteRecord} disabled={saving} style="margin-left: auto; color: red">
+            Löschen
+          </button>
+        {/if}
+      </div>
+    </form>
+  {/if}
+</QueryClientProvider>
 
 <style>
   .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 1rem; }
