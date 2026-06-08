@@ -1,5 +1,7 @@
 <script lang="ts">
 import type { AdminCollectionSchema } from '@workerpress/core';
+import { createQuery, QueryClientProvider } from '@tanstack/svelte-query';
+import { queryClient } from '../queryClient.js';
 
 interface Props {
   schema: AdminCollectionSchema;
@@ -11,14 +13,10 @@ let { schema, editUrlBase, newUrl }: Props = $props();
 
 type Row = Record<string, unknown>;
 
-let rows = $state<Row[]>([]);
-let loading = $state(true);
-let error = $state<string | null>(null);
 let orderBy = $state('id');
 let order = $state<'asc' | 'desc'>('asc');
 let offset = $state(0);
 const limit = 20;
-let hasMore = $state(false);
 
 const displayFields = $derived(
   schema.fields.filter((f) =>
@@ -26,10 +24,10 @@ const displayFields = $derived(
   ).slice(0, 5),
 );
 
-async function load() {
-  loading = true;
-  error = null;
-  try {
+// Svelte Query v6: createQuery takes a getter function so runes are reactively tracked.
+const query = createQuery(() => ({
+  queryKey: ['collection', schema.name, { orderBy, order, offset, limit }],
+  queryFn: async () => {
     const params = new URLSearchParams({
       limit: String(limit + 1),
       offset: String(offset),
@@ -38,15 +36,12 @@ async function load() {
     });
     const res = await fetch(`${schema.apiBase}?${params}`);
     if (!res.ok) throw new Error(`Laden fehlgeschlagen (${res.status})`);
-    const data = (await res.json()) as Row[];
-    hasMore = data.length > limit;
-    rows = data.slice(0, limit);
-  } catch (e) {
-    error = e instanceof Error ? e.message : 'Unbekannter Fehler';
-  } finally {
-    loading = false;
-  }
-}
+    return (await res.json()) as Row[];
+  },
+}), queryClient);
+
+const rows = $derived(query.data?.slice(0, limit) ?? []);
+const hasMore = $derived((query.data?.length ?? 0) > limit);
 
 function sort(col: string) {
   if (orderBy === col) {
@@ -56,11 +51,10 @@ function sort(col: string) {
     order = 'asc';
   }
   offset = 0;
-  void load();
 }
 
-function prev() { offset = Math.max(0, offset - limit); void load(); }
-function next() { offset += limit; void load(); }
+function prev() { offset = Math.max(0, offset - limit); }
+function next() { offset += limit; }
 
 function cellText(row: Row, name: string): string {
   const v = row[name];
@@ -69,60 +63,60 @@ function cellText(row: Row, name: string): string {
   if (typeof v === 'string' && v.length > 60) return v.slice(0, 60) + '…';
   return String(v);
 }
-
-$effect(() => { void load(); });
 </script>
 
-<div class="toolbar">
-  <h2>{schema.plural}</h2>
-  {#if newUrl}
-    <a href={newUrl} class="btn-primary">{schema.singular} anlegen</a>
-  {/if}
-</div>
+<QueryClientProvider client={queryClient}>
+  <div class="toolbar">
+    <h2>{schema.plural}</h2>
+    {#if newUrl}
+      <a href={newUrl} class="btn-primary">{schema.singular} anlegen</a>
+    {/if}
+  </div>
 
-{#if loading}
-  <p>Lädt…</p>
-{:else if error}
-  <p role="alert" style="color: red">{error}</p>
-{:else if rows.length === 0}
-  <p>Keine {schema.plural} vorhanden.</p>
-{:else}
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          {#each displayFields as f}
-            <th>
-              <button type="button" onclick={() => sort(f.name)}>
-                {f.label}
-                {#if orderBy === f.name}{order === 'asc' ? ' ↑' : ' ↓'}{/if}
-              </button>
-            </th>
-          {/each}
-          {#if editUrlBase}<th></th>{/if}
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as row (row.id)}
+  {#if query.isPending}
+    <p>Lädt…</p>
+  {:else if query.error}
+    <p role="alert" style="color: red">{query.error.message}</p>
+  {:else if rows.length === 0}
+    <p>Keine {schema.plural} vorhanden.</p>
+  {:else}
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
             {#each displayFields as f}
-              <td>{cellText(row, f.name)}</td>
+              <th>
+                <button type="button" onclick={() => sort(f.name)}>
+                  {f.label}
+                  {#if orderBy === f.name}{order === 'asc' ? ' ↑' : ' ↓'}{/if}
+                </button>
+              </th>
             {/each}
-            {#if editUrlBase}
-              <td><a href={`${editUrlBase}/${row.id}`}>Bearbeiten</a></td>
-            {/if}
+            {#if editUrlBase}<th></th>{/if}
           </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          {#each rows as row (row.id)}
+            <tr>
+              {#each displayFields as f}
+                <td>{cellText(row, f.name)}</td>
+              {/each}
+              {#if editUrlBase}
+                <td><a href={`${editUrlBase}/${row.id}`}>Bearbeiten</a></td>
+              {/if}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
 
-  <div class="pagination">
-    <button type="button" onclick={prev} disabled={offset === 0}>Zurück</button>
-    <span>{offset + 1}–{offset + rows.length}</span>
-    <button type="button" onclick={next} disabled={!hasMore}>Weiter</button>
-  </div>
-{/if}
+    <div class="pagination">
+      <button type="button" onclick={prev} disabled={offset === 0}>Zurück</button>
+      <span>{offset + 1}–{offset + rows.length}</span>
+      <button type="button" onclick={next} disabled={!hasMore}>Weiter</button>
+    </div>
+  {/if}
+</QueryClientProvider>
 
 <style>
   .toolbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
