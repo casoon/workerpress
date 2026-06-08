@@ -1,5 +1,10 @@
 # WorkerPress
 
+> ⚠️ **Work in progress — not production-ready.** WorkerPress is under active development and
+> pre-1.0. APIs, the collection DSL, schemas, and the database layout may change without notice,
+> and migrations between versions are not guaranteed. Use it to explore and experiment, not for
+> production workloads yet.
+
 **WorkerPress** is a schema-driven edge application framework with a CMS focus. It unites
 **Astro** (UI) and **Hono** (API) in a single Cloudflare Worker, driven by one source of
 truth: a `defineCollection` definition.
@@ -9,10 +14,16 @@ a type-safe query layer, OpenAPI docs, admin forms, the search index, cache reva
 TypeScript types. The CMS is the first complete application built on the framework — not the
 limit of what you can build with it.
 
-> **Status:** Early milestone (M0). The toolchain is green (build, typecheck, tests, lint) and
-> the reference app proves the core bets end-to-end: Astro + Hono in one Worker, the platform
-> abstraction over D1/R2/KV, a Drizzle+D1 CRUD spike, and type-safe Hono RPC into a Svelte
-> admin island. The collection DSL (`defineCollection`) is still a typed stub.
+> **Status:** Milestones M0–M3 complete. The collection DSL is fully implemented and drives
+> real generation end-to-end: hybrid DB schema + migrations, Zod schemas, REST/RPC, OpenAPI,
+> a type-safe query layer (`find`/`where`/`include`/`orderBy`), relations with `?include=`,
+> per-collection types, and FTS5 search. Beyond generation: plugin auto-discovery, sync hooks,
+> an async event bus (retry + optional Queues), content versioning + audit log, scoped API
+> tokens, first-class cache revalidation, and multi-site. Tooling: the full `cms` CLI
+> (`routes`/`collections`/`migrations`/`doctor`/`generate` + `inspect`, all with `--json`),
+> `cms doctor` as a CI gate, and the `npm create workerpress` scaffolder. The toolchain is
+> green (build, typecheck, tests, lint). A timeboxed bunny.net spike confirms the platform
+> contract carries beyond Cloudflare. See [`docs/`](./docs) for the full reference.
 
 ## Why Astro + Hono in one Worker
 
@@ -54,9 +65,10 @@ there is no per-tenant data separation and no `tenant_id` in auth, policies, or 
 
 | Package | Name | Purpose |
 |---|---|---|
-| Core | `@workerpress/core` | Collection DSL, generation, platform contract, `cms` CLI |
-| Cloudflare | `@workerpress/cloudflare` | Platform adapter (Drizzle/D1, R2, KV, `defer`) |
-| UI | `@workerpress/ui` | Shared admin islands (Svelte 5) |
+| Core | `@workerpress/core` | Collection DSL, generation, query layer, platform contract, `cms` CLI |
+| Cloudflare | `@workerpress/cloudflare` | Platform adapter (Drizzle/D1, R2, KV, Cache, events, `defer`) |
+| Bunny | `@workerpress/bunny` | Portability spike adapter (libSQL DB/Storage + KV fallback) |
+| UI | `@workerpress/ui` | Shared admin islands (Svelte 5, TanStack Query) |
 | Create | `create-workerpress` | `npm create workerpress` scaffolder |
 | Plugins | `@workerpress/plugin-*` | Official plugins |
 | Starter | `workerpress-starter` | Reference application |
@@ -71,8 +83,10 @@ pnpm dev                 # starter on http://localhost:4321 (Astro + Hono, local
 pnpm build && pnpm typecheck && pnpm test && pnpm lint
 
 # data (run in examples/starter)
-pnpm --filter workerpress-starter db:generate       # generate a D1 migration from the schema
-pnpm --filter workerpress-starter db:migrate:local  # apply it to the local D1
+pnpm --filter workerpress-starter db:generate:collections  # generate a migration from the collections
+pnpm --filter workerpress-starter db:migrate:local         # apply it to the local D1
+pnpm --filter workerpress-starter cms inspect blog         # see what a collection generates
+pnpm --filter workerpress-starter cms doctor               # pre-deploy health check (CI gate)
 ```
 
 ### Deploy to Cloudflare
@@ -99,8 +113,10 @@ enable those on the account, or adjust the adapter config, before a production d
 ## Platform
 
 The primary target is **Cloudflare** (Workers + D1 + R2 + KV). A thin platform abstraction
-keeps the core portable, with **bunny.net** (libSQL + Magic Containers) as a realistic second
-target. No domain code touches Cloudflare bindings directly.
+keeps the core portable; a timeboxed **bunny.net** spike (`@workerpress/bunny`, libSQL +
+Storage with a KV fallback) confirms the contract carries — see
+[`docs/portability-bunny.md`](./docs/portability-bunny.md). No domain code touches Cloudflare
+bindings directly.
 
 ## Tech stack
 
