@@ -55,10 +55,6 @@ const OPERATORS_BY_KIND: Record<string, (keyof WhereOperators)[]> = {
   relation: ['eq', 'in'],
 };
 
-function isColumn(field: Field, columns: Set<string>, key: string): boolean {
-  return columns.has(key);
-}
-
 /** Spalten-Referenz: echte Spalte direkt, JSON-Feld via json_extract. */
 function ref(key: string, column: boolean): SQL {
   return column ? sql`${sql.identifier(key)}` : sql`json_extract("data", ${`$.${key}`})`;
@@ -94,7 +90,7 @@ export function buildConditions(
     const field = collection.fields[key];
     if (!field) continue;
     const allowed = OPERATORS_BY_KIND[field.kind] ?? ['eq'];
-    const column = isColumn(field, columns, key);
+    const column = columns.has(key);
     const col = ref(key, column);
     const ops = normalizeOps(raw);
 

@@ -108,7 +108,8 @@ export function createEventBus(opts: EventBusOptions): EventBus {
       if (!handlers || handlers.length === 0) return;
       if (opts.queue) {
         // Queue übernimmt Persistenz + Retry; nur die Übergabe deferren.
-        opts.defer(() => opts.queue!.send({ event: name, payload }));
+        const queue = opts.queue;
+        opts.defer(() => queue.send({ event: name, payload }));
         return;
       }
       const ctx = { platform: opts.platform() };

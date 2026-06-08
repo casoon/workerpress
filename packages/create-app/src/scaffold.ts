@@ -26,7 +26,7 @@ export function applyVars(content: string, vars: TemplateVars): string {
 
 /** Validiert einen Projekt-/npm-Paketnamen. Gibt eine Fehlermeldung oder null zurück. */
 export function validateProjectName(name: string): string | null {
-  if (!name || !name.trim()) return 'Projektname darf nicht leer sein';
+  if (!name?.trim()) return 'Projektname darf nicht leer sein';
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
     return 'Nur Kleinbuchstaben, Ziffern und . _ - erlaubt (npm-Paketname)';
   }
@@ -113,7 +113,7 @@ export function nextSteps(answers: ScaffoldAnswers): string[] {
   return [
     `cd ${answers.projectName}`,
     'npm install',
-    'npm run cms setup    # provisioniert D1/KV' + (answers.media ? '/R2' : ''),
+    `npm run cms setup    # provisioniert D1/KV${answers.media ? '/R2' : ''}`,
     'npm run db:migrate',
     'npm run seed         # Admin-User + Demo-Blog',
     'npm run dev',
