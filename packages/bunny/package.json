@@ -1,0 +1,29 @@
+{
+  "name": "@workerpress/bunny",
+  "version": "0.0.0",
+  "description": "Bunny-Adapter (Spike) für den WorkerPress Platform-Contract — DB/Storage/KV-Fallback",
+  "type": "module",
+  "license": "BUSL-1.1",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.3",
+    "drizzle-orm": "^0.45.2"
+  },
+  "peerDependencies": {
+    "@workerpress/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  }
+}

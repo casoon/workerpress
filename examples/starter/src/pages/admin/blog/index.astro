@@ -1,0 +1,27 @@
+---
+import CollectionTable from '@workerpress/ui/components/CollectionTable.svelte';
+import { adminSchema } from '@workerpress/core';
+import blog from '../../../../collections/blog.js';
+
+const schema = adminSchema(blog);
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{schema.plural} · Admin</title>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/admin">← Admin</a></nav>
+      <CollectionTable
+        {schema}
+        editUrlBase="/admin/blog"
+        newUrl="/admin/blog/new"
+        client:load
+      />
+    </main>
+  </body>
+</html>

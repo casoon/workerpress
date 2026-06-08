@@ -55,11 +55,27 @@ export function openApiDocument(collections: CollectionConfig[], info: OpenApiIn
       .columns.filter((c) => !c.generatedFrom && c.name !== 'id' && c.name !== 'data')
       .map((c) => ({ name: c.name, in: 'query', schema: { type: 'string' } }));
 
+    // Relation-Felder (M2-4): per `?include=` auflösbar.
+    const relationKeys = Object.entries(collection.fields)
+      .filter(([, f]) => f.kind === 'relation')
+      .map(([key]) => key);
+    const includeParam: Json[] = relationKeys.length
+      ? [
+          {
+            name: 'include',
+            in: 'query',
+            description: `Komma-getrennte Relationen zum Auflösen: ${relationKeys.join(', ')}`,
+            schema: { type: 'string' },
+          },
+        ]
+      : [];
+
     const listParams: Json[] = [
       { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } },
       { name: 'offset', in: 'query', schema: { type: 'integer', minimum: 0 } },
       { name: 'orderBy', in: 'query', schema: { type: 'string' } },
       { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] } },
+      ...includeParam,
       ...filterParams,
     ];
 
@@ -75,7 +91,11 @@ export function openApiDocument(collections: CollectionConfig[], info: OpenApiIn
       get: { tags: ['content', name], parameters: listParams, responses: listResponse },
     };
     paths[`/api/content/${name}/{id}`] = {
-      get: { tags: ['content', name], parameters: [idParam], responses: itemResponse },
+      get: {
+        tags: ['content', name],
+        parameters: [idParam, ...includeParam],
+        responses: itemResponse,
+      },
     };
     paths[`/api/internal/content/${name}`] = {
       get: { tags: ['internal', name], parameters: listParams, responses: listResponse },
@@ -89,7 +109,11 @@ export function openApiDocument(collections: CollectionConfig[], info: OpenApiIn
       },
     };
     paths[`/api/internal/content/${name}/{id}`] = {
-      get: { tags: ['internal', name], parameters: [idParam], responses: itemResponse },
+      get: {
+        tags: ['internal', name],
+        parameters: [idParam, ...includeParam],
+        responses: itemResponse,
+      },
       put: {
         tags: ['internal', name],
         parameters: [idParam],

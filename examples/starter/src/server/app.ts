@@ -1,16 +1,25 @@
 import { createCloudflarePlatform } from '@workerpress/cloudflare';
 import {
   type AuthUser,
+  apiTokenAuth,
+  buildRegistry,
+  collectSubscribers,
   contentRoutes,
   internalRoutes,
   openApiDocument,
   type Platform,
+  resolvePlugins,
   searchableFields,
+  tokenRoutes,
+  tokenScopeGuard,
 } from '@workerpress/core';
 import { Hono } from 'hono';
 import blog from '../../collections/blog.js';
 import pages from '../../collections/pages.js';
+import { plugins } from '../../plugins/index.js';
+import { sites } from '../../sites.js';
 import { ACCESS_TEAM_DOMAIN, resolveUser } from './auth.js';
+import { mediaRoutes } from './routes/internal/media.js';
 import { notesRoutes } from './routes/internal/notes.js';
 import { smokeRoutes } from './routes/internal/smoke.js';
 
@@ -24,22 +33,66 @@ import { smokeRoutes } from './routes/internal/smoke.js';
  */
 
 type Bindings = Env;
-type Variables = { platform: Platform; user?: AuthUser };
+type Variables = { platform: Platform; user?: AuthUser; scopes?: string[] };
 type AppEnv = { Bindings: Bindings; Variables: Variables };
+
+// Plugin-Registry (M2-1): in Abhängigkeitsreihenfolge aufgelöst und automatisch
+// gemountet. Plugin-Collections erhalten dieselben Content-/Internal-Routen wie
+// First-Party-Collections; eigene Plugin-Routen landen unter /internal/plugins.
+const resolved = resolvePlugins(plugins);
+// Event-Subscriber (M2-3) aus den Plugin-`on`-Maps, einmalig gesammelt.
+const eventSubscribers = collectSubscribers(resolved.plugins);
+// Collection-Registry (M2-4): alle Collections, damit `?include=` Relationen
+// über First-Party- und Plugin-Grenzen hinweg auflösen kann.
+const allCollections = [blog, pages, ...resolved.collections];
+const registry = buildRegistry(allCollections);
+// M2-4: Relation-Auflösung via Registry. M2-6: Versionierung + Audit-Log über die
+// festen Plattform-Tabellen. M2-8: Cache-Revalidation (Read-Through KV + Edge).
+// M2-9: Multi-Site — Content-API filtert auf aktive Site + globalen Content.
+const routeOpts = {
+  registry,
+  history: { versions: true, audit: true },
+  cache: { ttl: 300 },
+  sites,
+};
 
 // Content-API (read-only, nur published) und Internal-API (Vollzugriff) werden
 // generisch aus den Collection-Definitionen generiert (ARCHITECTURE §10).
 const content = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ ok: true, surface: 'content' }))
-  .route('/blog', contentRoutes(blog))
-  .route('/pages', contentRoutes(pages));
+  .route('/blog', contentRoutes(blog, routeOpts))
+  .route('/pages', contentRoutes(pages, routeOpts));
 
+// Internal-API: optionaler Bearer-Token-Pfad (M2-7). Liegt ein gültiges Token an,
+// wird `user`+`scopes` daraus abgeleitet und der Scope-Guard greift; ohne Token
+// gilt der Session-Pfad (Access) + die Collection-Policies.
 const internal = new Hono<AppEnv>()
+  .use('*', apiTokenAuth())
+  .use('*', tokenScopeGuard())
   .get('/health', (c) => c.json({ ok: true, surface: 'internal' }))
+  .route('/tokens', tokenRoutes())
   .route('/notes', notesRoutes)
   .route('/smoke', smokeRoutes)
-  .route('/content/blog', internalRoutes(blog))
-  .route('/content/pages', internalRoutes(pages));
+  .route('/media', mediaRoutes)
+  .route('/content/blog', internalRoutes(blog, routeOpts))
+  .route('/content/pages', internalRoutes(pages, routeOpts));
+
+const pluginRoutes = new Hono<AppEnv>();
+for (const plugin of resolved.plugins) plugin.routes?.(pluginRoutes);
+internal.route('/plugins', pluginRoutes);
+for (const collection of resolved.collections) {
+  content.route(`/${collection.name}`, contentRoutes(collection, routeOpts));
+  internal.route(`/content/${collection.name}`, internalRoutes(collection, routeOpts));
+}
+
+// FTS5-Felder pro Collection (First-Party + Plugins) für den Such-Adapter.
+const searchableFieldsByCollection: Record<string, string[]> = {
+  blog: searchableFields(blog),
+  pages: searchableFields(pages),
+};
+for (const collection of resolved.collections) {
+  searchableFieldsByCollection[collection.name] = searchableFields(collection);
+}
 
 export const app = new Hono<AppEnv>()
   // Bootstrap: Platform an genau einer Stelle aus env + executionCtx konstruieren.
@@ -48,11 +101,9 @@ export const app = new Hono<AppEnv>()
       'platform',
       createCloudflarePlatform(c.env, c.executionCtx, {
         mediaBaseUrl: '/media',
-        searchableFieldsByCollection: {
-          blog: searchableFields(blog),
-          pages: searchableFields(pages),
-        },
+        searchableFieldsByCollection,
         accessTeamDomain: ACCESS_TEAM_DOMAIN,
+        eventSubscribers,
       }),
     );
     const user = await resolveUser(c.req.raw);
@@ -80,7 +131,12 @@ export const app = new Hono<AppEnv>()
     });
   })
   .get('/api/docs', (c) =>
-    c.json(openApiDocument([blog, pages], { title: 'WorkerPress Starter API', version: '0.0.0' })),
+    c.json(
+      openApiDocument(allCollections, {
+        title: 'WorkerPress Starter API',
+        version: '0.0.0',
+      }),
+    ),
   )
   .route('/api/content', content)
   .route('/api/internal', internal);

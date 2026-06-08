@@ -1,0 +1,35 @@
+{
+  "name": "__PROJECT_NAME__",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "deploy": "astro build && wrangler deploy -c dist/server/wrangler.json",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "cms": "tsx scripts/cms.ts",
+    "setup": "tsx scripts/setup.ts",
+    "seed": "tsx scripts/seed.ts",
+    "typecheck": "astro check",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^13.5.4",
+    "@astrojs/svelte": "^8.1.1",
+    "@workerpress/cloudflare": "^0.1.0",
+    "@workerpress/core": "^0.1.0",
+    "astro": "^6.3.7",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.22",
+    "svelte": "^5.55.9"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@playwright/test": "^1.49.0",
+    "tsx": "^4.22.3",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.94.0"
+  }
+}

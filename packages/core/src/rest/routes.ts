@@ -9,23 +9,54 @@
  */
 
 import { type Context, Hono } from 'hono';
+import { readThroughContent, revalidateOnWrite } from '../cache/revalidate.js';
 import type { CollectionConfig } from '../collections/index.js';
 import { searchableFields } from '../db/fts5.js';
-import { collectionRepository, type ListOptions } from '../db/repository.js';
+import { getVersion, listVersions, recordAudit, recordVersion } from '../db/history.js';
+import { parseFindQuery } from '../db/query.js';
+import { type CollectionRegistry, parseInclude, resolveIncludes } from '../db/relations.js';
+import { collectionRepository } from '../db/repository.js';
+import { runHooks } from '../hooks/index.js';
 import type { AuthUser, Platform, SearchableDoc } from '../platform/index.js';
 import { collectionSchemas } from '../schema/zod.js';
+import { resolveSite, type SiteConfig } from '../sites/index.js';
 
 type Env = { Variables: { platform: Platform; user?: AuthUser } };
 
-function parseListQuery(c: Context<Env>): ListOptions {
-  const { limit, offset, orderBy, order, ...where } = c.req.query();
-  return {
-    limit: limit ? Number(limit) : undefined,
-    offset: offset ? Number(offset) : undefined,
-    orderBy,
-    order: order === 'desc' ? 'desc' : 'asc',
-    where: Object.keys(where).length > 0 ? where : undefined,
+/** Optionen für die Routen-Generierung (Relation-Auflösung über die Registry). */
+export interface RouteOptions {
+  /** Alle Collections, damit `?include=` Relationen auflösen kann (M2-4). */
+  registry?: CollectionRegistry;
+  /** Content-Versionierung + Audit-Log (M2-6). Setzt die festen Plattform-Tabellen voraus. */
+  history?: {
+    /** Bei jedem create/update einen Versions-Snapshot anlegen + /versions-Routen. */
+    versions?: boolean;
+    /** create/update/delete und abgelehnte Zugriffe (403) ins audit_log schreiben. */
+    audit?: boolean;
   };
+  /** First-Class Cache-Revalidation (M2-8): Read-Through + Invalidierung bei Writes. */
+  cache?: {
+    /** TTL der KV-Cache-Einträge in Sekunden (Default: kein Ablauf). */
+    ttl?: number;
+  };
+  /**
+   * Multi-Site-Register (M2-9). Gesetzt → die Content-API löst die aktive Site aus
+   * dem Host/`x-site` auf und filtert auf site-eigenen + globalen Content.
+   */
+  sites?: SiteConfig[];
+}
+
+/** Aktive Site/Host eines Requests für site-aware Cache-Keys (M2-8/M2-9). */
+function requestHost(c: Context<Env>): string | undefined {
+  return c.req.header('x-site') ?? c.req.header('host') ?? undefined;
+}
+
+function requestOrigin(c: Context<Env>): string | undefined {
+  try {
+    return new URL(c.req.url).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 function toSearchableDoc(record: Record<string, unknown>, fields: string[]): SearchableDoc {
@@ -42,19 +73,101 @@ function toSearchableDoc(record: Record<string, unknown>, fields: string[]): Sea
   return doc;
 }
 
-export function internalRoutes(collection: CollectionConfig) {
+export function internalRoutes(collection: CollectionConfig, routeOpts: RouteOptions = {}) {
   const schemas = collectionSchemas(collection);
   const fields = searchableFields(collection);
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
+  const registry = routeOpts.registry;
+  const history = routeOpts.history;
+  const cacheOpts = routeOpts.cache;
+
+  // Cache-Revalidation (M2-8): nach erfolgreichem Write entkoppelt (defer) die
+  // betroffenen Pfade invalidieren und den Read-Through-Cache der Collection per
+  // Tag-Version entwerten. Ohne `cache`-Option ist es ein No-op.
+  function revalidateAfter(c: Context<Env>, doc: Record<string, unknown>): void {
+    if (!cacheOpts) return;
+    const host = requestHost(c);
+    const origin = requestOrigin(c);
+    c.var.platform.defer(() =>
+      revalidateOnWrite(c.var.platform, collection, doc, { host, origin }),
+    );
+  }
+
+  // Content-Versionierung + Audit-Log (M2-6). Läuft nach erfolgreichem Commit,
+  // inline (damit /versions sofort konsistent ist). Bei deaktivierter History
+  // (keine Plattform-Tabellen) sind die Helfer No-ops.
+  async function snapshot(
+    c: Context<Env>,
+    record: Record<string, unknown>,
+    action: 'create' | 'update',
+  ): Promise<void> {
+    const db = c.var.platform.db;
+    const id = typeof record.id === 'string' ? record.id : undefined;
+    if (history?.versions && id) {
+      await recordVersion(db, {
+        collection: collection.name,
+        recordId: id,
+        data: record,
+        changedBy: c.var.user?.id ?? null,
+      });
+    }
+    if (history?.audit) {
+      await recordAudit(db, {
+        action,
+        collection: collection.name,
+        recordId: id ?? null,
+        user: c.var.user?.id ?? null,
+      });
+    }
+  }
+
+  async function auditDenied(
+    c: Context<Env>,
+    recordId: string | null,
+    policy: string,
+  ): Promise<void> {
+    if (!history?.audit) return;
+    await recordAudit(c.var.platform.db, {
+      action: 'access-denied',
+      collection: collection.name,
+      recordId,
+      user: c.var.user?.id ?? null,
+      policy,
+    });
+  }
+
+  // Löst `?include=author,tags` auf den gegebenen Zeilen auf (M2-4), sofern eine
+  // Registry vorhanden ist. Ohne Registry/Include bleiben die rohen IDs erhalten.
+  async function withIncludes(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const include = parseInclude(c.req.query('include'));
+    if (!registry || include.length === 0) return rows;
+    return resolveIncludes(c.var.platform.db, collection, rows, include, registry);
+  }
+
+  async function filterByReadPolicy(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+    policy: NonNullable<NonNullable<CollectionConfig['access']>['read']>,
+  ): Promise<Record<string, unknown>[]> {
+    const filtered: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      if (await policy.check({ user: c.var.user, doc: row })) filtered.push(row);
+    }
+    return filtered;
+  }
 
   async function authorize(
     c: Context<Env>,
     op: 'read' | 'write',
     doc?: Record<string, unknown>,
-  ): Promise<boolean> {
+  ): Promise<{ allowed: true } | { allowed: false; policy: string }> {
     const policy = op === 'read' ? collection.access?.read : collection.access?.write;
-    if (!policy) return true;
-    return Boolean(await policy.check({ user: c.var.user, doc }));
+    if (!policy) return { allowed: true };
+    const ok = Boolean(await policy.check({ user: c.var.user, doc }));
+    return ok ? { allowed: true } : { allowed: false, policy: policy.name };
   }
 
   function indexAfter(c: Context<Env>, record: Record<string, unknown>): void {
@@ -71,8 +184,68 @@ export function internalRoutes(collection: CollectionConfig) {
     c.var.platform.defer(() => c.var.platform.search.remove(collection.name, id));
   }
 
+  // Event-Bus (M2-3): nach erfolgreicher Schreiboperation feuern. `emit` kehrt
+  // sofort zurück; die Zustellung läuft entkoppelt über `platform.events`.
+  function emitWrite(
+    c: Context<Env>,
+    record: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): void {
+    const id = typeof record.id === 'string' ? record.id : undefined;
+    if (!id) return;
+    const events = c.var.platform.events;
+    if (operation === 'create') {
+      events.emit('content.created', { collection: collection.name, id, doc: record });
+    }
+    if (record.status === 'published') {
+      events.emit('content.published', { collection: collection.name, id, doc: record });
+    }
+  }
+
+  // Lifecycle-Hooks (M2-2). `beforeChange` darf `doc` mutieren und abbrechen:
+  // wirft ein Hook, antworten wir mit 422 (Rückgabe = fertige Response). Fehler
+  // aus `afterChange` werden bewusst nicht abgefangen — fehleranfällige
+  // Nacharbeit gehört in den Event-Bus (M2-3).
+  async function beforeChange(
+    c: Context<Env>,
+    doc: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): Promise<Response | null> {
+    try {
+      await runHooks(collection.hooks?.beforeChange, {
+        doc,
+        user: c.var.user,
+        collection: collection.name,
+        operation,
+      });
+      return null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'hook rejected the request';
+      return c.json({ error: message }, 422);
+    }
+  }
+
+  async function afterChange(
+    c: Context<Env>,
+    doc: Record<string, unknown>,
+    operation: 'create' | 'update',
+  ): Promise<void> {
+    await runHooks(collection.hooks?.afterChange, {
+      doc,
+      user: c.var.user,
+      collection: collection.name,
+      operation,
+    });
+  }
+
   return new Hono<Env>()
-    .get('/', async (c) => c.json(await repo(c).list(parseListQuery(c))))
+    .get('/', async (c) => {
+      const rows = await repo(c).find(parseFindQuery(collection, c.req.query()));
+      const readPolicy = collection.access?.read;
+      // Policy filtert vor der Relation-Auflösung (kein Leak über `include`).
+      const visible = readPolicy ? await filterByReadPolicy(c, rows, readPolicy) : rows;
+      return c.json(await withIncludes(c, visible));
+    })
     .get('/search', async (c) => {
       const q = c.req.query('q');
       if (!q) return c.json({ error: 'missing q' }, 400);
@@ -84,15 +257,30 @@ export function internalRoutes(collection: CollectionConfig) {
       const record = await repo(c).get(c.req.param('id'));
       if (!record) return c.json({ error: 'not found' }, 404);
       // Auf 404 zu mappen, vermeidet, dass die Existenz des Datensatzes geleakt wird.
-      if (!(await authorize(c, 'read', record))) return c.json({ error: 'not found' }, 404);
-      return c.json(record);
+      const auth = await authorize(c, 'read', record);
+      if (!auth.allowed) return c.json({ error: 'not found' }, 404);
+      const [resolved] = await withIncludes(c, [record]);
+      return c.json(resolved);
     })
     .post('/', async (c) => {
       const parsed = schemas.insert.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-      if (!(await authorize(c, 'write'))) return c.json({ error: 'forbidden' }, 403);
-      const record = await repo(c).create(parsed.data as Record<string, unknown>);
+      const auth = await authorize(c, 'write');
+      if (!auth.allowed) {
+        await auditDenied(c, null, auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
+      // beforeChange läuft nach Validierung/Policy, aber vor der Persistenz und
+      // darf `doc` verändern (z. B. Slug ableiten) oder mit 422 abbrechen.
+      const doc = parsed.data as Record<string, unknown>;
+      const blocked = await beforeChange(c, doc, 'create');
+      if (blocked) return blocked;
+      const record = await repo(c).create(doc);
+      await afterChange(c, record, 'create');
+      await snapshot(c, record, 'create');
       indexAfter(c, record);
+      emitWrite(c, record, 'create');
+      revalidateAfter(c, record);
       return c.json(record, 201);
     })
     .put('/:id', async (c) => {
@@ -100,33 +288,122 @@ export function internalRoutes(collection: CollectionConfig) {
       if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
       const existing = await repo(c).get(c.req.param('id'));
       if (!existing) return c.json({ error: 'not found' }, 404);
-      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
-      const record = await repo(c).update(
-        c.req.param('id'),
-        parsed.data as Record<string, unknown>,
-      );
-      if (record) indexAfter(c, record);
-      return record ? c.json(record) : c.json({ error: 'not found' }, 404);
+      const auth = await authorize(c, 'write', existing);
+      if (!auth.allowed) {
+        await auditDenied(c, c.req.param('id'), auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
+      const doc = parsed.data as Record<string, unknown>;
+      const blocked = await beforeChange(c, doc, 'update');
+      if (blocked) return blocked;
+      const record = await repo(c).update(c.req.param('id'), doc);
+      if (!record) return c.json({ error: 'not found' }, 404);
+      await afterChange(c, record, 'update');
+      await snapshot(c, record, 'update');
+      indexAfter(c, record);
+      emitWrite(c, record, 'update');
+      revalidateAfter(c, record);
+      return c.json(record);
     })
     .delete('/:id', async (c) => {
       const id = c.req.param('id');
       const existing = await repo(c).get(id);
       if (!existing) return c.json({ error: 'not found' }, 404);
-      if (!(await authorize(c, 'write', existing))) return c.json({ error: 'forbidden' }, 403);
+      const auth = await authorize(c, 'write', existing);
+      if (!auth.allowed) {
+        await auditDenied(c, id, auth.policy);
+        return c.json({ error: 'forbidden', policy: auth.policy }, 403);
+      }
       const ok = await repo(c).remove(id);
-      if (ok) removeAfter(c, id);
+      if (ok) {
+        if (history?.audit) {
+          await recordAudit(c.var.platform.db, {
+            action: 'delete',
+            collection: collection.name,
+            recordId: id,
+            user: c.var.user?.id ?? null,
+          });
+        }
+        removeAfter(c, id);
+        c.var.platform.events.emit('content.deleted', { collection: collection.name, id });
+        revalidateAfter(c, { ...existing, id });
+      }
       return ok ? c.body(null, 204) : c.json({ error: 'not found' }, 404);
+    })
+    .get('/:id/versions', async (c) => {
+      if (!history?.versions) return c.json({ error: 'versioning disabled' }, 404);
+      const auth = await authorize(c, 'read', (await repo(c).get(c.req.param('id'))) ?? undefined);
+      if (!auth.allowed) return c.json({ error: 'not found' }, 404);
+      return c.json(await listVersions(c.var.platform.db, collection.name, c.req.param('id')));
+    })
+    .get('/:id/versions/:v', async (c) => {
+      if (!history?.versions) return c.json({ error: 'versioning disabled' }, 404);
+      const snap = await getVersion(
+        c.var.platform.db,
+        collection.name,
+        c.req.param('id'),
+        Number(c.req.param('v')),
+      );
+      return snap ? c.json(snap) : c.json({ error: 'not found' }, 404);
     });
 }
 
-export function contentRoutes(collection: CollectionConfig) {
+export function contentRoutes(collection: CollectionConfig, routeOpts: RouteOptions = {}) {
   const repo = (c: Context<Env>) => collectionRepository(c.var.platform.db, collection);
+  const registry = routeOpts.registry;
+  const cacheOpts = routeOpts.cache;
+  const sites = routeOpts.sites;
+
+  // Aktive Site aus Host/`x-site` (M2-9). Ohne Register oder ohne site-Feld an der
+  // Collection bleibt der Filter inaktiv (undefined → kein WHERE site).
+  function activeSiteId(c: Context<Env>): string | null | undefined {
+    if (!sites || !('site' in collection.fields)) return undefined;
+    const host = requestHost(c);
+    const path = new URL(c.req.url).pathname;
+    return resolveSite(sites, host, path)?.id ?? null;
+  }
+  async function withIncludes(
+    c: Context<Env>,
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const include = parseInclude(c.req.query('include'));
+    if (!registry || include.length === 0) return rows;
+    return resolveIncludes(c.var.platform.db, collection, rows, include, registry);
+  }
+  // Read-Through über KV (M2-8), site-aware und tag-versioniert: nach einem Write
+  // (revalidateTag) liefert der nächste GET frische Daten. Ohne `cache`-Option
+  // wird direkt aus der DB gelesen.
+  async function cached<T>(c: Context<Env>, suffix: string, load: () => Promise<T>): Promise<T> {
+    if (!cacheOpts) return load();
+    return readThroughContent(
+      c.var.platform,
+      { host: requestHost(c), collection: collection.name, suffix, ttl: cacheOpts.ttl },
+      load,
+    );
+  }
   return new Hono<Env>()
-    .get('/', async (c) =>
-      c.json(await repo(c).list({ ...parseListQuery(c), publishedOnly: true })),
-    )
+    .get('/', async (c) => {
+      const site = activeSiteId(c);
+      const suffix = `list?${new URL(c.req.url).searchParams.toString()}`;
+      const data = await cached(c, suffix, async () => {
+        const rows = await repo(c).find({
+          ...parseFindQuery(collection, c.req.query()),
+          publishedOnly: true,
+          site,
+        });
+        return withIncludes(c, rows);
+      });
+      return c.json(data);
+    })
     .get('/:id', async (c) => {
-      const record = await repo(c).get(c.req.param('id'), { publishedOnly: true });
-      return record ? c.json(record) : c.json({ error: 'not found' }, 404);
+      const id = c.req.param('id');
+      const include = c.req.query('include') ?? '';
+      const data = await cached(c, `item:${id}?include=${include}`, async () => {
+        const record = await repo(c).get(id, { publishedOnly: true });
+        if (!record) return null;
+        const [resolved] = await withIncludes(c, [record]);
+        return resolved ?? null;
+      });
+      return data ? c.json(data) : c.json({ error: 'not found' }, 404);
     });
 }

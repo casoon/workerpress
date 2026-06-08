@@ -1,0 +1,26 @@
+---
+import TokensPanel from '../../../admin/islands/TokensPanel.svelte';
+
+const user = Astro.locals.user;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API-Tokens · Admin · WorkerPress</title>
+  </head>
+  <body>
+    <main>
+      <p><a href="/admin">← Admin</a></p>
+      <h1>API-Tokens</h1>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+      <p>
+        Tokens erlauben programmatischen Zugriff auf die Internal-API über
+        <code>Authorization: Bearer &lt;token&gt;</code>. Nur Admins können Tokens verwalten.
+      </p>
+      <TokensPanel client:load />
+    </main>
+  </body>
+</html>

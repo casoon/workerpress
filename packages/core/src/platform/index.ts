@@ -41,6 +41,11 @@ export interface EventBus {
   emit<E extends string>(event: E, payload: unknown): void;
 }
 
+/** Edge-Cache-Invalidierung (Cloudflare Cache API; No-op auf Plattformen ohne). */
+export interface CachePurge {
+  delete(url: string): Promise<void>;
+}
+
 /** Authentifizierter Nutzer — minimaler Kontrakt, der für Policies reicht. */
 export interface AuthUser {
   id: string;
@@ -71,6 +76,8 @@ export interface Platform {
   defer(work: () => Promise<void>): void;
   search: SearchAdapter;
   events: EventBus;
+  /** Edge-Cache-Invalidierung (M2-8). */
+  cache: CachePurge;
   /** Resolves the authenticated user from an incoming Request (M1-7). */
   auth: AuthVerifier;
 }

@@ -1,7 +1,18 @@
 ---
+import { resolveAdminExtensions } from '@workerpress/core';
 import NotesPanel from '../../admin/islands/NotesPanel.svelte';
+import CommentsWidget from '../../admin/islands/CommentsWidget.svelte';
+import blog from '../../../collections/blog.js';
+import pages from '../../../collections/pages.js';
+import { plugins } from '../../../plugins/index.js';
 
 const user = Astro.locals.user;
+const collections = [blog, pages];
+
+// Admin-Erweiterungspunkte (M3-4): Plugin-Widgets im Dashboard rendern. `island`
+// wird auf die importierte Svelte-Komponente abgebildet (Astro lädt sie als Insel).
+const extensions = resolveAdminExtensions(plugins);
+const widgetComponents: Record<string, typeof CommentsWidget> = { CommentsWidget };
 ---
 
 <!doctype html>
@@ -14,7 +25,34 @@ const user = Astro.locals.user;
   <body>
     <main>
       <h1>Admin</h1>
-      <p>Angemeldet als: {user ? JSON.stringify(user) : 'unbekannt'}</p>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+
+      <h2>Collections</h2>
+      <ul>
+        {collections.map((c) => (
+          <li><a href={`/admin/${c.name}`}>{c.labels?.plural ?? c.name}</a></li>
+        ))}
+      </ul>
+
+      <h2>Verwaltung</h2>
+      <ul>
+        <li><a href="/admin/tokens">API-Tokens</a></li>
+        <li><a href="/admin/sites">Sites</a></li>
+      </ul>
+
+      {extensions.widgets.length > 0 && (
+        <>
+          <h2>Dashboard</h2>
+          <div class="widget-grid">
+            {extensions.widgets.map((widget) => {
+              const Widget = widget.island ? widgetComponents[widget.island] : undefined;
+              return Widget ? <Widget client:load /> : <p>Unbekanntes Widget: {widget.id}</p>;
+            })}
+          </div>
+        </>
+      )}
+
+      <hr />
       <h2>Notes</h2>
       <NotesPanel client:load />
     </main>

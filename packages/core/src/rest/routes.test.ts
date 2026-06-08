@@ -3,10 +3,12 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { defineCollection } from '../collections/index.js';
+import { platformTablesSql } from '../db/history.js';
 import { generateMigration } from '../db/migrate.js';
 import { collectionRepository } from '../db/repository.js';
 import { field } from '../fields/index.js';
-import type { Platform } from '../platform/index.js';
+import type { AuthUser, Platform } from '../platform/index.js';
+import { definePolicy } from '../policies/index.js';
 import { contentRoutes, internalRoutes } from './routes.js';
 
 const articles = defineCollection({
@@ -73,7 +75,13 @@ describe('collectionRepository', () => {
 
 describe('content vs internal routes', () => {
   function app(db: ReturnType<typeof drizzle>) {
-    const platform = { db } as unknown as Platform;
+    const platform = {
+      db,
+      events: { emit() {} },
+      defer: (work: () => Promise<void>) => {
+        void work();
+      },
+    } as unknown as Platform;
     return new Hono<{ Variables: { platform: Platform } }>()
       .use('*', async (c, next) => {
         c.set('platform', platform);
@@ -129,7 +137,13 @@ describe('content vs internal routes', () => {
     );
 
     function build(user?: { role: string }) {
-      const platform = { db } as unknown as Platform;
+      const platform = {
+        db,
+        events: { emit() {} },
+        defer: (work: () => Promise<void>) => {
+          void work();
+        },
+      } as unknown as Platform;
       return new Hono<{ Variables: { platform: Platform; user?: typeof user } }>()
         .use('*', async (c, next) => {
           c.set('platform', platform);
@@ -139,17 +153,15 @@ describe('content vs internal routes', () => {
         .route('/g', internalRoutes(gated));
     }
 
-    // anonymous: write -> 403
+    // anonymous: write -> 403 with policy name
     const anon = build();
-    expect(
-      (
-        await anon.request('/g', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ title: 'X' }),
-        })
-      ).status,
-    ).toBe(403);
+    const forbidden = await anon.request('/g', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'X' }),
+    });
+    expect(forbidden.status).toBe(403);
+    expect(((await forbidden.json()) as { policy?: string }).policy).toBe('onlyAdmins');
 
     // admin: write -> 201, then read -> 200
     const admin = build({ role: 'admin' });
@@ -164,5 +176,199 @@ describe('content vs internal routes', () => {
 
     // anonymous reading existing record -> 404 (don't leak existence)
     expect((await anon.request(`/g/${id}`)).status).toBe(404);
+
+    // anonymous: list -> empty (read policy filters server-side)
+    const list = (await (await anon.request('/g')).json()) as unknown[];
+    expect(list).toHaveLength(0);
+
+    // admin: list -> sees the record
+    const adminList = (await (await admin.request('/g')).json()) as unknown[];
+    expect(adminList).toHaveLength(1);
+  });
+});
+
+describe('lifecycle hooks (M2-2)', () => {
+  async function setupWith(collection: ReturnType<typeof defineCollection>) {
+    const client = createClient({ url: ':memory:' });
+    const db = drizzle(client);
+    const { sql } = generateMigration([collection]);
+    await client.executeMultiple(sql as string);
+    return db;
+  }
+
+  function appFor(
+    db: ReturnType<typeof drizzle>,
+    collection: ReturnType<typeof defineCollection>,
+    user?: AuthUser,
+  ) {
+    const platform = {
+      db,
+      events: { emit() {} },
+      defer: (work: () => Promise<void>) => {
+        void work();
+      },
+    } as unknown as Platform;
+    return new Hono<{ Variables: { platform: Platform; user?: AuthUser } }>()
+      .use('*', async (c, next) => {
+        c.set('platform', platform);
+        if (user) c.set('user', user);
+        await next();
+      })
+      .route('/c', internalRoutes(collection));
+  }
+
+  function post(a: ReturnType<typeof appFor>, body: unknown) {
+    return a.request('/c', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('runs beforeChange (priority-ordered, mutating doc) then afterChange on create', async () => {
+    const order: string[] = [];
+    const collection = defineCollection({
+      name: 'hooked',
+      fields: { title: field.text({ required: true }), slug: field.slug() },
+      hooks: {
+        beforeChange: [
+          { handler: () => void order.push('before-late'), priority: 5 },
+          {
+            handler: ({ doc, collection: name, operation }) => {
+              order.push(`before-early:${name}:${operation}`);
+              if (!doc.slug && typeof doc.title === 'string') {
+                doc.slug = doc.title.toLowerCase().replace(/\s+/g, '-');
+              }
+            },
+            priority: -1,
+          },
+        ],
+        afterChange: [({ doc }) => void order.push(`after:${doc.slug}`)],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    const res = await post(a, { title: 'Hello World' });
+    expect(res.status).toBe(201);
+    const rec = (await res.json()) as { slug: string };
+    expect(rec.slug).toBe('hello-world');
+    expect(order).toEqual(['before-early:hooked:create', 'before-late', 'after:hello-world']);
+  });
+
+  it('returns 422 when a beforeChange hook throws', async () => {
+    const collection = defineCollection({
+      name: 'guarded',
+      fields: { title: field.text({ required: true }) },
+      hooks: {
+        beforeChange: [
+          () => {
+            throw new Error('title is taken');
+          },
+        ],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    const res = await post(a, { title: 'x' });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: 'title is taken' });
+  });
+
+  it('supports async hooks', async () => {
+    let ran = false;
+    const collection = defineCollection({
+      name: 'asyncc',
+      fields: { title: field.text({ required: true }) },
+      hooks: {
+        beforeChange: [
+          async () => {
+            await Promise.resolve();
+            ran = true;
+          },
+        ],
+      },
+    });
+    const a = appFor(await setupWith(collection), collection);
+    expect((await post(a, { title: 'x' })).status).toBe(201);
+    expect(ran).toBe(true);
+  });
+});
+
+describe('content versioning + audit (M2-6)', () => {
+  const posts = defineCollection({
+    name: 'posts',
+    fields: { title: field.text({ required: true }) },
+  });
+
+  async function setupHistory() {
+    const client = createClient({ url: ':memory:' });
+    const db = drizzle(client);
+    await client.executeMultiple(generateMigration([posts]).sql as string);
+    await client.executeMultiple(platformTablesSql());
+    return db;
+  }
+
+  function app(db: ReturnType<typeof drizzle>, collection = posts, user?: AuthUser) {
+    const platform = {
+      db,
+      events: { emit() {} },
+      defer: (work: () => Promise<void>) => {
+        void work();
+      },
+    } as unknown as Platform;
+    return new Hono<{ Variables: { platform: Platform; user?: AuthUser } }>()
+      .use('*', async (c, next) => {
+        c.set('platform', platform);
+        if (user) c.set('user', user);
+        await next();
+      })
+      .route('/c', internalRoutes(collection, { history: { versions: true, audit: true } }));
+  }
+
+  it('creates a version on create and update, listed newest-first', async () => {
+    const a = app(await setupHistory());
+    const created = await a.request('/c', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'v1' }),
+    });
+    const id = ((await created.json()) as { id: string }).id;
+    await a.request(`/c/${id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'v2' }),
+    });
+    const versions = (await (await a.request(`/c/${id}/versions`)).json()) as {
+      version: number;
+      data: { title: string };
+    }[];
+    expect(versions.map((v) => v.version)).toEqual([2, 1]);
+    const snap = (await (await a.request(`/c/${id}/versions/1`)).json()) as {
+      data: { title: string };
+    };
+    expect(snap.data.title).toBe('v1');
+  });
+
+  it('writes an access-denied audit entry on a 403 write', async () => {
+    const onlyAdmins = definePolicy<unknown, { role?: string }>(
+      'onlyAdmins',
+      ({ user }) => user?.role === 'admin',
+    );
+    const gated = defineCollection({
+      name: 'posts',
+      fields: { title: field.text({ required: true }) },
+      access: { write: onlyAdmins },
+    });
+    const db = await setupHistory();
+    const a = app(db, gated);
+    const res = await a.request('/c', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'x' }),
+    });
+    expect(res.status).toBe(403);
+    const { listAudit } = await import('../db/history.js');
+    const entries = await listAudit(db, 'posts');
+    expect(entries.some((e) => e.action === 'access-denied' && e.policy === 'onlyAdmins')).toBe(
+      true,
+    );
   });
 });

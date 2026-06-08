@@ -1,0 +1,33 @@
+---
+import { adminExtensionsForCollection, resolveAdminExtensions } from '@workerpress/core';
+import BulkActionsBar from '../../../admin/islands/BulkActionsBar.svelte';
+import { plugins } from '../../../plugins/index.js';
+
+const user = Astro.locals.user;
+// Bulk-Actions + Views, die für die comments-Collection gelten (M3-4).
+const { bulkActions, views } = adminExtensionsForCollection(
+  resolveAdminExtensions(plugins),
+  'comments',
+);
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kommentare · Admin · WorkerPress</title>
+  </head>
+  <body>
+    <main>
+      <p><a href="/admin">← Admin</a></p>
+      <h1>Kommentare</h1>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+      <p>
+        Plugin-beigesteuerte Bulk-Actions und Saved Views (M3-4). „Freigeben" setzt selektierte
+        Kommentare auf <code>approved</code>; „Ausstehend" filtert auf <code>status = pending</code>.
+      </p>
+      <BulkActionsBar collection="comments" bulkActions={bulkActions} views={views} client:load />
+    </main>
+  </body>
+</html>

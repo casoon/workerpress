@@ -1,0 +1,40 @@
+---
+import { sites } from '../../../../sites.js';
+
+const user = Astro.locals.user;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sites · Admin · WorkerPress</title>
+  </head>
+  <body>
+    <main>
+      <p><a href="/admin">← Admin</a></p>
+      <h1>Sites</h1>
+      <p>Angemeldet als: {user ? user.email : 'unbekannt'}</p>
+      <p>
+        Eine Installation, mehrere Sites (Hauptseite + Landingpages). Content mit einer Site-Zuordnung
+        gehört zu dieser Site; ohne Zuordnung ist er global und erscheint überall (ARCHITECTURE §13).
+      </p>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Rolle</th><th>Host</th><th>Pfad-Präfix</th></tr>
+        </thead>
+        <tbody>
+          {sites.map((site) => (
+            <tr>
+              <td>{site.name}</td>
+              <td>{site.role}</td>
+              <td>{site.host}</td>
+              <td>{site.pathPrefix ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </main>
+  </body>
+</html>

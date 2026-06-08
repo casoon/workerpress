@@ -57,3 +57,28 @@ export type InferSelect<C> =
 /** Insert-Typ (entspricht Zod `insert`): required ohne Default ist Pflicht. */
 export type InferInsert<C> =
   C extends CollectionConfig<infer F> ? Shape<F, InsertRequiredKeys<F>> : never;
+
+/**
+ * Aufgelöster Wert eines Relation-Felds (M2-4): `single` → Ziel-Row|null,
+ * `many` → Ziel-Row-Array. `T` ist der `InferSelect`-Typ der Ziel-Collection.
+ */
+type ResolvedRelation<F, T> =
+  F extends Field<'relation', infer O>
+    ? O extends { many: true }
+      ? T[]
+      : T | null
+    : FieldValue<F>;
+
+/**
+ * `InferSelect` mit aufgelösten Relationen (M2-4). `R` bildet je includetem
+ * Field-Key den `InferSelect`-Typ der Ziel-Collection ab — bei `?include=author`
+ * wird `author` dann zum Objekt statt zur ID.
+ *
+ * Beispiel: `WithInclude<typeof posts, { author: InferSelect<typeof users> }>`.
+ */
+export type WithInclude<C, R extends Record<string, unknown>> =
+  C extends CollectionConfig<infer F>
+    ? Omit<InferSelect<C>, keyof R> & {
+        [K in keyof R & keyof F]: ResolvedRelation<F[K], R[K]>;
+      }
+    : never;
